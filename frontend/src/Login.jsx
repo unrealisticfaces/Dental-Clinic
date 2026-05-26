@@ -24,53 +24,49 @@ export default function Login({ onLogin }) {
   };
 
   return (
-    // Beautiful gradient background
-    <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] text-slate-100 font-sans selection:bg-blue-500/30">
-      
-      {/* Glassmorphism Card */}
-      <div className="bg-slate-800/40 backdrop-blur-xl p-10 rounded-2xl shadow-2xl border border-slate-700/50 w-[400px] transform transition-all hover:border-blue-500/30">
-        
-        <div className="flex flex-col items-center mb-8">
-          <div className="bg-blue-500/20 p-3 rounded-full mb-3 border border-blue-500/30">
-            <Activity className="text-blue-400" size={32} />
+    <div className="flex h-screen w-full items-center justify-center bg-gray-50 text-gray-900 font-sans selection:bg-blue-200">
+      <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200 w-[360px]">
+        <div className="flex flex-col items-center mb-6">
+          <div className="bg-blue-50 p-2 rounded-full mb-3 border border-blue-100">
+            <Activity className="text-blue-600" size={24} />
           </div>
-          <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">
+          <h2 className="text-2xl font-bold text-gray-800">
             DentalCare Pro
           </h2>
-          <p className="text-slate-400 text-sm mt-1">Sign in to your workspace</p>
+          <p className="text-gray-500 text-xs mt-1">Sign in to your workspace</p>
         </div>
         
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-slate-300 text-sm font-medium ml-1">Username</label>
+            <label className="text-gray-600 text-xs font-semibold ml-1">Username</label>
             <input
               type="text"
               name="username"
-              className="w-full p-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200"
+              className="w-full p-2.5 bg-white border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
               placeholder="e.g., admin"
               onChange={handleChange}
               required
             />
           </div>
           <div className="space-y-1">
-            <label className="text-slate-300 text-sm font-medium ml-1">Password</label>
+            <label className="text-gray-600 text-xs font-semibold ml-1">Password</label>
             <input
               type="password"
               name="password"
-              className="w-full p-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200"
+              className="w-full p-2.5 bg-white border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
               placeholder="••••••••"
               onChange={handleChange}
               required
             />
           </div>
           
-          <button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-blue-500/25 transition-all duration-200 transform hover:-translate-y-0.5 mt-4">
+          <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-md shadow-sm transition-all text-sm mt-2">
             Sign In
           </button>
         </form>
         
-        <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">
-          <p className="text-xs text-slate-500">Test Account: <span className="text-slate-400 font-mono">admin / admin123</span></p>
+        <div className="mt-5 pt-5 border-t border-gray-100 text-center">
+          <p className="text-xs text-gray-400">Test Account: <span className="text-gray-500 font-mono">admin / admin123</span></p>
         </div>
       </div>
     </div>

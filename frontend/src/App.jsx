@@ -10,7 +10,7 @@ import Receipt from './Receipt';
 import RegisterPatient from './RegisterPatient';
 import PatientDirectory from './PatientDirectory';
 import PatientDetails from './PatientDetails';
-import TransactionHistory from './TransactionHistory';
+import StatementOfAccount from './StatementOfAccount'; // NEW IMPORT
 import SystemLogs from './SystemLogs';
 
 export default function App() {
@@ -20,32 +20,32 @@ export default function App() {
     return (
       <>
         <Login onLogin={() => setIsAuthenticated(true)} />
-        <ToastContainer position="bottom-right" theme="dark" />
+        <ToastContainer position="bottom-right" theme="light" />
       </>
     );
   }
 
   return (
     <Router>
-      <div className="flex h-screen bg-[#0f172a] text-white font-sans">
+      <div className="flex h-screen bg-gray-50 text-gray-900 font-sans">
         <Sidebar onLogout={() => setIsAuthenticated(false)} />
         
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-6">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/patients/register" element={<RegisterPatient />} />
             <Route path="/patients/search" element={<PatientDirectory />} />
             <Route path="/patients/view/:id" element={<PatientDetails />} />
+            <Route path="/patients/:id/statement" element={<StatementOfAccount />} /> {/* NEW ROUTE */}
             <Route path="/transactions/payment" element={<Payment />} />
             <Route path="/transactions/receipt/:id" element={<Receipt />} />
-            <Route path="/transactions/search" element={<TransactionHistory />} />
             <Route path="/logs" element={<SystemLogs />} />
             
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
         
-        <ToastContainer position="bottom-right" theme="dark" />
+        <ToastContainer position="bottom-right" theme="light" />
       </div>
     </Router>
   );

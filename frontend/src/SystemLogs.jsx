@@ -41,77 +41,96 @@ export default function SystemLogs() {
   const getEventBadge = (eventName) => {
     switch (eventName) {
       case 'REGISTRATION':
-        return <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-md text-[10px] font-bold tracking-wider">REGISTRATION</span>;
+        return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider">REGISTRATION</span>;
       case 'PAYMENT':
-        return <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1 rounded-md text-[10px] font-bold tracking-wider">PAYMENT</span>;
-      case 'AUTH':
-        return <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1 rounded-md text-[10px] font-bold tracking-wider">AUTH</span>;
+        return <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider">PAYMENT</span>;
       default:
-        return <span className="bg-slate-700/50 text-slate-300 border border-slate-600 px-3 py-1 rounded-md text-[10px] font-bold tracking-wider">SYSTEM</span>;
+        return <span className="bg-gray-100 text-gray-700 border border-gray-300 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider">SYSTEM</span>;
     }
   };
 
+  const displayLogs = logs.filter(log => {
+    const eventType = log.action.includes('|') ? log.action.split('|')[0] : 'SYSTEM';
+    return eventType !== 'AUTH';
+  });
+
   return (
-    <div className="max-w-7xl mx-auto pb-10 h-full flex flex-col">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+    <div className="max-w-6xl mx-auto pb-10 h-full flex flex-col">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
         <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Activity className="text-amber-500" size={24} />
+          <h2 className="text-xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
+            <Activity className="text-purple-600" size={20} />
             System Logs
           </h2>
-          <p className="text-slate-400 mt-1 text-sm">Monitor all detailed administrative events.</p>
         </div>
         
-        <div className="relative w-full md:w-96">
+        <div className="relative w-full md:w-80">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="text-slate-400" size={16} />
+            <Search className="text-gray-400" size={14} />
           </div>
           <input 
             type="text" 
             placeholder="Search activity records..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-[#1e293b] border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all text-sm shadow-sm"
+            className="w-full pl-8 pr-3 py-2 bg-white border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all text-sm shadow-sm"
           />
         </div>
       </div>
 
-      <div className="bg-[#1e293b] rounded-xl border border-slate-700/60 shadow-lg overflow-hidden flex flex-col flex-1 min-h-[600px]">
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col flex-1 min-h-[500px]">
         <div className="overflow-x-auto flex-1 relative">
           {isLoading && (
-            <div className="absolute inset-0 bg-[#1e293b]/80 z-20 flex items-center justify-center backdrop-blur-sm">
-              <Activity className="animate-pulse text-amber-500" size={32} />
+            <div className="absolute inset-0 bg-white/80 z-20 flex items-center justify-center">
+              <Activity className="animate-pulse text-purple-600" size={28} />
             </div>
           )}
-          <table className="w-full text-left text-sm text-slate-300">
-            <thead className="bg-slate-800/80 text-slate-400 uppercase text-[11px] font-semibold tracking-wider sticky top-0 z-10 backdrop-blur-sm">
+          <table className="w-full text-left text-sm text-gray-700">
+            <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-semibold tracking-wider sticky top-0 z-10 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 w-24">Log ID</th>
-                <th className="px-6 py-4 w-40">Event</th>
-                <th className="px-6 py-4">Description</th>
-                <th className="px-6 py-4 text-right">Timestamp</th>
+                <th className="px-4 py-3 w-20">Log ID</th>
+                <th className="px-4 py-3 w-32">Event</th>
+                <th className="px-4 py-3">Description</th>
+                <th className="px-4 py-3">Amount</th>
+                <th className="px-4 py-3 text-right">Timestamp</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700/50">
-              {logs.length > 0 ? (
-                logs.map((log) => {
+            <tbody className="divide-y divide-gray-100">
+              {displayLogs.length > 0 ? (
+                displayLogs.map((log) => {
                   const hasSplit = log.action.includes('|');
                   const eventType = hasSplit ? log.action.split('|')[0] : 'SYSTEM';
                   const description = hasSplit ? log.action.split('|')[1] : log.action;
 
+                  let displayAmount = '-';
+                  if (log.amount) {
+                    displayAmount = `PHP ${Number(log.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+                  } else {
+                    const match = description.match(/(?:PHP|₱|amount of|paid)\s*([\d,.]+)/i) || description.match(/([\d,.]+)\s*PHP/i);
+                    if (match && match[1]) {
+                      const num = parseFloat(match[1].replace(/,/g, ''));
+                      if (!isNaN(num)) {
+                        displayAmount = `PHP ${num.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+                      }
+                    }
+                  }
+
                   return (
-                    <tr key={log.id} className="hover:bg-slate-700/30 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs font-medium text-amber-500/70">
+                    <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-2.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-gray-500">
                         #{String(log.id).padStart(5, '0')}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-2.5">
                         {getEventBadge(eventType)}
                       </td>
-                      <td className="px-6 py-4 font-medium text-white text-sm">
+                      <td className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-800">
                         {description}
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="text-slate-400 text-xs font-medium">
+                      <td className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-gray-800">
+                        {displayAmount}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
                           {new Date(log.timestamp).toLocaleDateString('en-US', { 
                             year: 'numeric', month: 'short', day: 'numeric', 
                             hour: '2-digit', minute: '2-digit', second: '2-digit'
@@ -123,7 +142,7 @@ export default function SystemLogs() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="4" className="p-8 text-center text-slate-500 text-sm">
+                  <td colSpan="5" className="p-6 text-center text-gray-400 text-[10px] font-semibold uppercase tracking-wider">
                     {!isLoading && 'No system logs found'}
                   </td>
                 </tr>
@@ -132,22 +151,22 @@ export default function SystemLogs() {
           </table>
         </div>
         
-        <div className="flex items-center justify-between px-5 py-3 border-t border-slate-700/50 bg-slate-800/30">
-          <span className="text-xs text-slate-400 font-medium">
+        <div className="flex items-center justify-between px-4 py-2 border-t border-gray-200 bg-gray-50">
+          <span className="text-xs text-gray-500 font-medium">
             Page {currentPage} of {totalPages || 1}
           </span>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              className="p-1 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-200 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
             >
               <ChevronLeft size={16} />
             </button>
             <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages || totalPages === 0}
-              className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              className="p-1 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-200 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
             >
               <ChevronRight size={16} />
             </button>

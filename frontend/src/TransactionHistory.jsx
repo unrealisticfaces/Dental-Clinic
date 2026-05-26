@@ -42,72 +42,71 @@ export default function TransactionHistory() {
   }, [searchQuery, currentPage]);
 
   return (
-    <div className="max-w-7xl mx-auto pb-10 h-full flex flex-col">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+    <div className="max-w-6xl mx-auto pb-10 h-full flex flex-col">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
         <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            {/* UPDATED ICON AND TEXT TO SEARCH TRANSACTIONS */}
-            <Search className="text-amber-500" size={24} />
+          <h2 className="text-xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
+            <Search className="text-amber-600" size={20} />
             Search Transactions
           </h2>
         </div>
         
-        <div className="relative w-full md:w-80">
+        <div className="relative w-full md:w-72">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="text-slate-400" size={16} />
+            <Search className="text-gray-400" size={14} />
           </div>
           <input 
             type="text" 
-            placeholder="Search by ID, Name, Procedure..." 
+            placeholder="Search ID, Name..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-[#1e293b] border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all text-sm shadow-sm"
+            className="w-full pl-8 pr-3 py-2 bg-white border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all text-sm shadow-sm"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
-        <div className="lg:col-span-2 bg-[#1e293b] rounded-xl border border-slate-700/60 shadow-lg overflow-hidden flex flex-col h-[600px]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
+        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
           <div className="overflow-x-auto flex-1 relative">
             {isLoading && (
-              <div className="absolute inset-0 bg-[#1e293b]/80 z-20 flex items-center justify-center backdrop-blur-sm">
-                <Activity className="animate-pulse text-amber-500" size={32} />
+              <div className="absolute inset-0 bg-white/80 z-20 flex items-center justify-center">
+                <Activity className="animate-pulse text-amber-500" size={28} />
               </div>
             )}
-            <table className="w-full text-left text-sm text-slate-300">
-              <thead className="bg-slate-800/80 text-slate-400 uppercase text-[11px] font-semibold tracking-wider sticky top-0 z-10 backdrop-blur-sm">
+            <table className="w-full text-left text-sm text-gray-700">
+              <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-semibold tracking-wider sticky top-0 z-10 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-4">TXN ID</th>
-                  <th className="px-6 py-4">Patient</th>
-                  <th className="px-6 py-4">Procedure</th>
-                  <th className="px-6 py-4 text-right">Date</th>
+                  <th className="px-4 py-3">TXN ID</th>
+                  <th className="px-4 py-3">Patient</th>
+                  <th className="px-4 py-3">Procedure</th>
+                  <th className="px-4 py-3 text-right">Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700/50">
+              <tbody className="divide-y divide-gray-100">
                 {transactions.length > 0 ? (
                   transactions.map((txn) => (
                     <tr 
                       key={txn.id} 
                       onClick={() => setSelectedTxn(txn)}
-                      className={`hover:bg-slate-700/40 cursor-pointer transition-colors border-l-2 ${selectedTxn?.id === txn.id ? 'bg-slate-700/50 border-amber-500' : 'border-transparent'}`}
+                      className={`hover:bg-amber-50 cursor-pointer transition-colors border-l-2 ${selectedTxn?.id === txn.id ? 'bg-amber-50 border-amber-500' : 'border-transparent'}`}
                     >
-                      <td className="px-6 py-4 font-mono text-sm font-medium text-amber-500">
+                      <td className="px-4 py-2.5 font-mono text-xs font-medium text-amber-600">
                         TXN-{String(txn.id).padStart(6, '0')}
                       </td>
-                      <td className="px-6 py-4 font-medium text-white text-base">
+                      <td className="px-4 py-2.5 font-medium text-gray-900 text-sm">
                         {txn.first_name} {txn.last_name}
                       </td>
-                      <td className="px-6 py-4 text-slate-300">
+                      <td className="px-4 py-2.5 text-sm text-gray-600">
                         {txn.procedure_name}
                       </td>
-                      <td className="px-6 py-4 text-right text-slate-400 font-medium whitespace-nowrap">
+                      <td className="px-4 py-2.5 text-right text-gray-500 text-xs font-medium whitespace-nowrap">
                         {new Date(txn.transaction_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" className="p-8 text-center text-slate-500 text-sm">
+                    <td colSpan="4" className="p-6 text-center text-gray-400 text-sm">
                       {!isLoading && 'No transactions found'}
                     </td>
                   </tr>
@@ -116,22 +115,22 @@ export default function TransactionHistory() {
             </table>
           </div>
           
-          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-700/50 bg-slate-800/30">
-            <span className="text-xs text-slate-400 font-medium">
+          <div className="flex items-center justify-between px-4 py-2 border-t border-gray-200 bg-gray-50">
+            <span className="text-xs text-gray-500 font-medium">
               Page {currentPage} of {totalPages || 1}
             </span>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                className="p-1 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-200 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
               >
                 <ChevronLeft size={16} />
               </button>
               <button
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages || totalPages === 0}
-                className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                className="p-1 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-200 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
               >
                 <ChevronRight size={16} />
               </button>
@@ -139,45 +138,45 @@ export default function TransactionHistory() {
           </div>
         </div>
 
-        <div className="lg:col-span-1 bg-[#1e293b] rounded-xl border border-slate-700/60 shadow-lg p-6 flex flex-col items-center justify-center h-[600px] relative">
+        <div className="lg:col-span-1 bg-white rounded-lg border border-gray-200 shadow-sm p-5 flex flex-col items-center justify-center h-[500px] relative">
           {selectedTxn ? (
             <div className="w-full flex flex-col items-center text-center animate-in fade-in duration-200">
-              <div className="w-20 h-20 mb-4 bg-amber-500/10 rounded-full flex items-center justify-center border-2 border-amber-500/20 shadow-lg">
-                <Receipt className="text-amber-500" size={36} />
+              <div className="w-16 h-16 mb-3 bg-amber-50 rounded-full flex items-center justify-center border border-amber-100 shadow-sm">
+                <Receipt className="text-amber-600" size={28} />
               </div>
               
-              <h3 className="text-xl font-bold text-white tracking-tight">
+              <h3 className="text-lg font-bold text-gray-900 tracking-tight">
                 TXN-{String(selectedTxn.id).padStart(6, '0')}
               </h3>
-              <p className="text-slate-400 text-sm font-medium mb-6">
+              <p className="text-gray-500 text-xs font-medium mb-4">
                 {new Date(selectedTxn.transaction_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
 
-              <div className="w-full bg-[#0f172a]/60 rounded-xl border border-slate-700/50 p-4 mb-6 space-y-4">
-                <div className="flex items-start gap-3 text-left">
-                  <div className="bg-amber-500/10 p-2 rounded-lg text-amber-500 mt-0.5 shrink-0">
-                    <User size={14} />
+              <div className="w-full bg-gray-50 rounded-lg border border-gray-200 p-3 mb-4 space-y-3">
+                <div className="flex items-start gap-2 text-left">
+                  <div className="bg-white p-1.5 rounded border border-gray-200 text-amber-600 mt-0.5 shrink-0">
+                    <User size={12} />
                   </div>
                   <div>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">Billed To</p>
-                    <p className="text-slate-200 text-sm font-medium">{selectedTxn.first_name} {selectedTxn.last_name}</p>
-                    <p className="text-slate-500 text-xs font-mono">{selectedTxn.unique_id}</p>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-0.5">Billed To</p>
+                    <p className="text-gray-900 text-xs font-medium">{selectedTxn.first_name} {selectedTxn.last_name}</p>
+                    <p className="text-gray-500 text-[10px] font-mono">{selectedTxn.unique_id}</p>
                   </div>
                 </div>
                 
-                <div className="flex items-start gap-3 text-left">
-                  <div className="bg-amber-500/10 p-2 rounded-lg text-amber-500 mt-0.5 shrink-0">
-                    <Activity size={14} />
+                <div className="flex items-start gap-2 text-left">
+                  <div className="bg-white p-1.5 rounded border border-gray-200 text-amber-600 mt-0.5 shrink-0">
+                    <Activity size={12} />
                   </div>
                   <div>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">Procedure</p>
-                    <p className="text-slate-200 text-sm font-medium leading-snug">{selectedTxn.procedure_name}</p>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-0.5">Procedure</p>
+                    <p className="text-gray-900 text-xs font-medium leading-snug">{selectedTxn.procedure_name}</p>
                   </div>
                 </div>
 
-                <div className="pt-4 mt-2 border-t border-slate-700/50">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1 text-center">Amount Settled</p>
-                  <p className="text-amber-500 text-2xl font-black font-mono">
+                <div className="pt-3 mt-1 border-t border-gray-200">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 text-center">Amount Settled</p>
+                  <p className="text-amber-600 text-lg font-bold font-mono">
                     PHP {Number(selectedTxn.amount_paid).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
@@ -185,15 +184,15 @@ export default function TransactionHistory() {
 
               <button 
                 onClick={() => navigate(`/transactions/receipt/${selectedTxn.id}`)}
-                className="w-full bg-amber-500 hover:bg-amber-600 text-[#0f172a] font-bold text-sm py-3 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 rounded-md transition-colors shadow-sm flex items-center justify-center gap-1"
               >
-                Open Official Receipt <ChevronRight size={16} strokeWidth={2.5} />
+                Open Official Receipt <ChevronRight size={14} />
               </button>
             </div>
           ) : (
             <div className="text-center opacity-60">
-              <CreditCard className="text-slate-500 mx-auto mb-3" size={40} />
-              <p className="text-slate-400 text-sm font-medium">Select a transaction to preview</p>
+              <CreditCard className="text-gray-400 mx-auto mb-2" size={32} />
+              <p className="text-gray-500 text-xs font-medium">Select a transaction to preview</p>
             </div>
           )}
         </div>

@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  --color-darkBg: #0f172a;
-  --color-grayPanel: #1e293b;
-  --color-blueAccent: #3b82f6;
+  --color-lightBg: #f3f4f6;
+  --color-whitePanel: #ffffff;
+  --color-blueAccent: #2563eb;
 }
 
 body {
-  background-color: var(--color-darkBg);
-  color: #f8fafc;
+  background-color: var(--color-lightBg);
+  color: #111827;
   margin: 0;
   padding: 0;
 }

@@ -14,10 +14,22 @@ export default function RegisterPatient() {
     firstName: '', 
     middleName: '', 
     lastName: '', 
-    age: '', 
+    birthDate: '', 
     cellphone: '', 
     address: ''
   });
+
+  const calculateAge = (birthDateString) => {
+    if (!birthDateString) return '';
+    const today = new Date();
+    const birthDate = new Date(birthDateString);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
 
   const capture = useCallback(() => {
     const imageSrc = webcamRef.current.getScreenshot();
@@ -39,6 +51,11 @@ export default function RegisterPatient() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handlePhoneChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+    setFormData({ ...formData, cellphone: val });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!photo) {
@@ -46,18 +63,28 @@ export default function RegisterPatient() {
       return;
     }
 
+    if (formData.cellphone.length !== 11) {
+      toast.warn("Cellphone number must be exactly 11 digits.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/patients', { 
+      const computedAge = calculateAge(formData.birthDate);
+      const payload = { 
         ...formData, 
+        age: computedAge, 
+        cellphone: `+63${formData.cellphone}`,
         photo 
-      });
+      };
+      
+      const response = await axios.post('http://localhost:5000/api/patients', payload);
       
       if (response.data.success) {
         toast.success(`Registration complete! ID generated: ${response.data.uniqueId}`, { autoClose: 5000 });
         
-        setFormData({ firstName: '', middleName: '', lastName: '', age: '', cellphone: '', address: '' });
+        setFormData({ firstName: '', middleName: '', lastName: '', birthDate: '', cellphone: '', address: '' });
         setPhoto(null);
       }
     } catch (error) {
@@ -68,21 +95,21 @@ export default function RegisterPatient() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto pb-10">
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-          <UserCheck className="text-blue-500" size={32} />
+    <div className="max-w-5xl mx-auto pb-10">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
+          <UserCheck className="text-blue-600" size={28} />
           Patient Registration
         </h2>
-        <p className="text-slate-400 mt-1">Register a new patient profile and capture their photo.</p>
+        <p className="text-gray-500 mt-1 text-sm">Register a new patient profile and capture their photo.</p>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <div className="lg:col-span-1 bg-[#1e293b] p-6 rounded-2xl border border-slate-700/60 shadow-xl h-fit">
-          <h3 className="text-slate-200 text-lg font-bold mb-4">Patient Photo</h3>
+        <div className="lg:col-span-1 bg-white p-5 rounded-xl border border-gray-200 shadow-sm h-fit">
+          <h3 className="text-gray-800 text-base font-bold mb-4">Patient Photo</h3>
           
-          <div className="w-full aspect-square bg-slate-900 rounded-xl overflow-hidden border-2 border-dashed border-slate-600 relative flex items-center justify-center mb-6">
+          <div className="w-48 h-48 mx-auto bg-gray-50 rounded-lg overflow-hidden border-2 border-dashed border-gray-300 relative flex items-center justify-center mb-5">
             {photo ? (
               <img src={photo} alt="Patient" className="object-cover w-full h-full" />
             ) : (
@@ -99,13 +126,13 @@ export default function RegisterPatient() {
             <button 
               type="button" 
               onClick={photo ? () => setPhoto(null) : capture}
-              className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl transition font-medium ${
+              className={`flex-1 flex items-center justify-center gap-1.5 p-2 rounded-md transition text-sm font-medium ${
                 photo 
-                  ? 'bg-slate-700 hover:bg-slate-600 text-white' 
-                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20'
+                  ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300' 
+                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
               }`}
             >
-              {photo ? <RefreshCw size={18} /> : <Camera size={18} />}
+              {photo ? <RefreshCw size={16} /> : <Camera size={16} />}
               {photo ? 'Retake' : 'Capture'}
             </button>
 
@@ -121,63 +148,69 @@ export default function RegisterPatient() {
                 <button 
                   type="button" 
                   onClick={() => fileInputRef.current.click()}
-                  className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl transition font-medium bg-slate-700 hover:bg-slate-600 text-white shadow-lg"
+                  className="flex-1 flex items-center justify-center gap-1.5 p-2 rounded-md transition text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 shadow-sm"
                 >
-                  <Upload size={18} /> Upload
+                  <Upload size={16} /> Upload
                 </button>
               </>
             )}
           </div>
         </div>
 
-        <div className="lg:col-span-2 bg-[#1e293b] p-8 rounded-2xl border border-slate-700/60 shadow-xl">
-          <h3 className="text-slate-200 text-lg font-bold mb-6">Personal Information</h3>
+        <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+          <h3 className="text-gray-800 text-base font-bold mb-5">Personal Information</h3>
           
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             
             <div>
-              <label className="text-sm font-medium text-slate-400 mb-2 block">First Name <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">First Name <span className="text-red-500">*</span></label>
               <input type="text" name="firstName" required value={formData.firstName} onChange={handleChange}
-                className="w-full p-3 bg-slate-900/50 rounded-xl text-white border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+                className="w-full px-3 py-2 bg-white rounded-md text-gray-900 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm" />
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-400 mb-2 block">Middle Name</label>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Middle Name</label>
               <input type="text" name="middleName" value={formData.middleName} onChange={handleChange}
-                className="w-full p-3 bg-slate-900/50 rounded-xl text-white border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+                className="w-full px-3 py-2 bg-white rounded-md text-gray-900 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm" />
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-400 mb-2 block">Last Name <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Last Name <span className="text-red-500">*</span></label>
               <input type="text" name="lastName" required value={formData.lastName} onChange={handleChange}
-                className="w-full p-3 bg-slate-900/50 rounded-xl text-white border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+                className="w-full px-3 py-2 bg-white rounded-md text-gray-900 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm" />
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-400 mb-2 block">Age <span className="text-red-500">*</span></label>
-              <input type="number" name="age" required min="1" value={formData.age} onChange={handleChange}
-                className="w-full p-3 bg-slate-900/50 rounded-xl text-white border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Birth Date <span className="text-red-500">*</span></label>
+              <input type="date" name="birthDate" required value={formData.birthDate} max={new Date().toISOString().split("T")[0]} onChange={handleChange}
+                className="w-full px-3 py-2 bg-white rounded-md text-gray-900 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm" />
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-sm font-medium text-slate-400 mb-2 block">Cellphone Number <span className="text-red-500">*</span></label>
-              <input type="tel" name="cellphone" required placeholder="e.g., +63 912 345 6789" value={formData.cellphone} onChange={handleChange}
-                className="w-full p-3 bg-slate-900/50 rounded-xl text-white border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Cellphone Number <span className="text-red-500">*</span></label>
+              <div className="flex bg-white border border-gray-300 rounded-md focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all overflow-hidden">
+                <span className="flex items-center px-3 bg-gray-50 border-r border-gray-300 text-gray-600 text-sm font-semibold">
+                  +63
+                </span>
+                <input type="tel" name="cellphone" required placeholder="09123456789" value={formData.cellphone} onChange={handlePhoneChange} maxLength="11"
+                  className="w-full px-3 py-2 bg-transparent text-gray-900 outline-none text-sm font-mono" />
+              </div>
+              <p className="text-[10px] text-gray-500 mt-1">Input exactly 11 digits</p>
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-sm font-medium text-slate-400 mb-2 block">Full Address <span className="text-red-500">*</span></label>
-              <textarea name="address" required rows="3" value={formData.address} onChange={handleChange}
-                className="w-full p-3 bg-slate-900/50 rounded-xl text-white border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all resize-none"></textarea>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Full Address <span className="text-red-500">*</span></label>
+              <textarea name="address" required rows="2" value={formData.address} onChange={handleChange}
+                className="w-full px-3 py-2 bg-white rounded-md text-gray-900 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all resize-none text-sm"></textarea>
             </div>
             
-            <div className="md:col-span-2 mt-4 pt-6 border-t border-slate-700/50">
+            <div className="md:col-span-2 mt-2 pt-4 border-t border-gray-100">
               <button 
                 type="submit" 
                 disabled={isSubmitting}
-                className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-md transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed text-sm"
               >
-                {isSubmitting ? <RefreshCw className="animate-spin" size={20} /> : <Save size={20} />}
+                {isSubmitting ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
                 {isSubmitting ? 'Registering...' : 'Register & Generate ID'}
               </button>
             </div>

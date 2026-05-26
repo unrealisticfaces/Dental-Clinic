@@ -13,72 +13,68 @@ export default function Sidebar({ onLogout }) {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="w-72 bg-[#1e293b] border-r border-slate-800/60 h-full flex flex-col justify-between shadow-2xl relative z-20">
-      <div className="p-6">
-        <div className="flex items-center gap-3 mb-10 px-2">
-          <Hexagon className="text-blue-500 fill-blue-500/20" size={32} strokeWidth={1.5} />
-          <h1 className="text-3xl font-black tracking-tight text-white">
-            Dental<span className="text-blue-500">Pro</span>
+    <div className="w-64 bg-white border-r border-gray-200 h-full flex flex-col justify-between shadow-sm relative z-20">
+      <div className="p-4">
+        <div className="flex items-center gap-2 mb-8 px-2">
+          <Hexagon className="text-blue-600 fill-blue-50" size={24} strokeWidth={2} />
+          <h1 className="text-xl font-bold tracking-tight text-gray-900">
+            Dental<span className="text-blue-600">Pro</span>
           </h1>
         </div>
         
-        <nav className="space-y-3 text-sm font-medium">
-          <Link to="/" className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${isActive('/') ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800/80 hover:text-white'}`}>
-            <LayoutDashboard size={20} className={isActive('/') ? 'text-white' : 'text-slate-400'} /> 
+        <nav className="space-y-1.5 text-sm font-medium">
+          <Link to="/" className={`flex items-center gap-2.5 p-2 rounded-md transition-all duration-200 ${isActive('/') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
+            <LayoutDashboard size={18} className={isActive('/') ? 'text-blue-700' : 'text-gray-500'} /> 
             Dashboard
           </Link>
 
           <div className="pt-2">
-            <button onClick={() => toggleMenu('patients')} className="w-full flex items-center justify-between p-3 rounded-xl text-slate-300 hover:bg-slate-800/50 hover:text-white transition-all cursor-pointer">
-              <div className="flex items-center gap-3">
-                <Users size={20} className="text-emerald-400" /> Patients
+            <button onClick={() => toggleMenu('patients')} className="w-full flex items-center justify-between p-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all cursor-pointer">
+              <div className="flex items-center gap-2.5">
+                <Users size={18} className="text-emerald-600" /> Patients
               </div>
-              <ChevronDown size={16} className={`transition-transform duration-300 ${openMenus.patients ? 'rotate-180 text-blue-400' : 'text-slate-500'}`} />
+              <ChevronDown size={14} className={`transition-transform duration-300 ${openMenus.patients ? 'rotate-180 text-blue-600' : 'text-gray-400'}`} />
             </button>
             
-            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openMenus.patients ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
-              <div className="flex flex-col gap-1 px-3">
-                <Link to="/patients/register" className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${isActive('/patients/register') ? 'bg-slate-800 text-blue-400' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}>
-                  <UserPlus size={16} /> Register Patient
+            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openMenus.patients ? 'max-h-40 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+              <div className="flex flex-col gap-0.5 px-2">
+                <Link to="/patients/register" className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md transition-colors text-xs ${isActive('/patients/register') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}>
+                  <UserPlus size={14} /> Register Patient
                 </Link>
-                <Link to="/patients/search" className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${isActive('/patients/search') ? 'bg-slate-800 text-blue-400' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}>
-                  <Search size={16} /> Patient Directory
+                <Link to="/patients/search" className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md transition-colors text-xs ${isActive('/patients/search') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}>
+                  <Search size={14} /> Accounts
                 </Link>
               </div>
             </div>
           </div>
 
           <div>
-            <button onClick={() => toggleMenu('transactions')} className="w-full flex items-center justify-between p-3 rounded-xl text-slate-300 hover:bg-slate-800/50 hover:text-white transition-all cursor-pointer">
-              <div className="flex items-center gap-3">
-                <CreditCard size={20} className="text-amber-400" /> Transactions
+            <button onClick={() => toggleMenu('transactions')} className="w-full flex items-center justify-between p-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all cursor-pointer">
+              <div className="flex items-center gap-2.5">
+                <CreditCard size={18} className="text-amber-600" /> Transactions
               </div>
-              <ChevronDown size={16} className={`transition-transform duration-300 ${openMenus.transactions ? 'rotate-180 text-blue-400' : 'text-slate-500'}`} />
+              <ChevronDown size={14} className={`transition-transform duration-300 ${openMenus.transactions ? 'rotate-180 text-blue-600' : 'text-gray-400'}`} />
             </button>
             
-            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openMenus.transactions ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
-              <div className="flex flex-col gap-1 px-3">
-                <Link to="/transactions/payment" className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${isActive('/transactions/payment') ? 'bg-slate-800 text-amber-400' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}>
-                  <Receipt size={16} /> Process Payment
-                </Link>
-                {/* RENAMED FROM TRANSACTION HISTORY TO SEARCH TRANSACTIONS */}
-                <Link to="/transactions/search" className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${isActive('/transactions/search') ? 'bg-slate-800 text-amber-400' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}>
-                  <Search size={16} /> Search Transactions
+            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openMenus.transactions ? 'max-h-40 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+              <div className="flex flex-col gap-0.5 px-2">
+                <Link to="/transactions/payment" className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md transition-colors text-xs ${isActive('/transactions/payment') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}>
+                  <Receipt size={14} /> Process Payment
                 </Link>
               </div>
             </div>
           </div>
 
-          <Link to="/logs" className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-200 mt-2 ${isActive('/logs') ? 'bg-purple-600/20 text-purple-400 border border-purple-500/20' : 'text-slate-400 hover:bg-slate-800/80 hover:text-white'}`}>
-            <Activity size={20} className={isActive('/logs') ? 'text-purple-400' : 'text-slate-400'} /> 
+          <Link to="/logs" className={`flex items-center gap-2.5 p-2 rounded-md transition-all duration-200 mt-2 ${isActive('/logs') ? 'bg-purple-50 text-purple-700 font-semibold' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
+            <Activity size={18} className={isActive('/logs') ? 'text-purple-700' : 'text-gray-500'} /> 
             System Logs
           </Link>
         </nav>
       </div>
 
-      <div className="p-6 border-t border-slate-800/60">
-        <button onClick={onLogout} className="flex items-center justify-center gap-3 p-3 rounded-xl bg-slate-800/50 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 border border-transparent hover:border-rose-500/20 transition-all w-full cursor-pointer font-medium">
-          <LogOut size={18} /> Sign Out
+      <div className="p-4 border-t border-gray-200">
+        <button onClick={onLogout} className="flex items-center justify-center gap-2 p-2 rounded-md bg-white hover:bg-red-50 text-gray-600 hover:text-red-600 border border-gray-200 hover:border-red-200 transition-all w-full cursor-pointer font-medium text-sm">
+          <LogOut size={16} /> Sign Out
         </button>
       </div>
     </div>
