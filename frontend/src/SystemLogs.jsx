@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Search, Activity, ChevronRight, ChevronLeft, Clock } from 'lucide-react';
+import { Search, ChevronRight, ChevronLeft, Activity } from 'lucide-react';
 
 export default function SystemLogs() {
   const [logs, setLogs] = useState([]);
@@ -38,15 +38,28 @@ export default function SystemLogs() {
     }
   }, [searchQuery, currentPage]);
 
+  const getEventBadge = (eventName) => {
+    switch (eventName) {
+      case 'REGISTRATION':
+        return <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-md text-[10px] font-bold tracking-wider">REGISTRATION</span>;
+      case 'PAYMENT':
+        return <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1 rounded-md text-[10px] font-bold tracking-wider">PAYMENT</span>;
+      case 'AUTH':
+        return <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1 rounded-md text-[10px] font-bold tracking-wider">AUTH</span>;
+      default:
+        return <span className="bg-slate-700/50 text-slate-300 border border-slate-600 px-3 py-1 rounded-md text-[10px] font-bold tracking-wider">SYSTEM</span>;
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto pb-10 h-full flex flex-col">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Activity className="text-purple-500" size={24} />
+            <Activity className="text-amber-500" size={24} />
             System Logs
           </h2>
-          <p className="text-slate-400 mt-1 text-sm">Monitor all CRUD activities and administrative events.</p>
+          <p className="text-slate-400 mt-1 text-sm">Monitor all detailed administrative events.</p>
         </div>
         
         <div className="relative w-full md:w-96">
@@ -58,7 +71,7 @@ export default function SystemLogs() {
             placeholder="Search activity records..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-[#1e293b] border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all text-sm shadow-sm"
+            className="w-full pl-9 pr-4 py-2.5 bg-[#1e293b] border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all text-sm shadow-sm"
           />
         </div>
       </div>
@@ -67,41 +80,50 @@ export default function SystemLogs() {
         <div className="overflow-x-auto flex-1 relative">
           {isLoading && (
             <div className="absolute inset-0 bg-[#1e293b]/80 z-20 flex items-center justify-center backdrop-blur-sm">
-              <Activity className="animate-pulse text-purple-500" size={32} />
+              <Activity className="animate-pulse text-amber-500" size={32} />
             </div>
           )}
           <table className="w-full text-left text-sm text-slate-300">
             <thead className="bg-slate-800/80 text-slate-400 uppercase text-[11px] font-semibold tracking-wider sticky top-0 z-10 backdrop-blur-sm">
               <tr>
-                <th className="px-6 py-4 w-24 text-center">Log ID</th>
-                <th className="px-6 py-4">Event Description</th>
+                <th className="px-6 py-4 w-24">Log ID</th>
+                <th className="px-6 py-4 w-40">Event</th>
+                <th className="px-6 py-4">Description</th>
                 <th className="px-6 py-4 text-right">Timestamp</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
               {logs.length > 0 ? (
-                logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-700/30 transition-colors">
-                    <td className="px-6 py-4 font-mono text-xs font-medium text-slate-500 text-center">
-                      #{String(log.id).padStart(5, '0')}
-                    </td>
-                    <td className="px-6 py-4 font-medium text-white text-base">
-                      {log.action}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2 text-slate-400">
-                        <Clock size={14} className="text-slate-500" />
-                        {new Date(log.timestamp).toLocaleDateString('en-US', { 
-                          year: 'numeric', month: 'short', day: 'numeric', 
-                          hour: '2-digit', minute: '2-digit', second: '2-digit'
-                        })}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                logs.map((log) => {
+                  const hasSplit = log.action.includes('|');
+                  const eventType = hasSplit ? log.action.split('|')[0] : 'SYSTEM';
+                  const description = hasSplit ? log.action.split('|')[1] : log.action;
+
+                  return (
+                    <tr key={log.id} className="hover:bg-slate-700/30 transition-colors">
+                      <td className="px-6 py-4 font-mono text-xs font-medium text-amber-500/70">
+                        #{String(log.id).padStart(5, '0')}
+                      </td>
+                      <td className="px-6 py-4">
+                        {getEventBadge(eventType)}
+                      </td>
+                      <td className="px-6 py-4 font-medium text-white text-sm">
+                        {description}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="text-slate-400 text-xs font-medium">
+                          {new Date(log.timestamp).toLocaleDateString('en-US', { 
+                            year: 'numeric', month: 'short', day: 'numeric', 
+                            hour: '2-digit', minute: '2-digit', second: '2-digit'
+                          })}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               ) : (
                 <tr>
-                  <td colSpan="3" className="p-8 text-center text-slate-500 text-sm">
+                  <td colSpan="4" className="p-8 text-center text-slate-500 text-sm">
                     {!isLoading && 'No system logs found'}
                   </td>
                 </tr>
