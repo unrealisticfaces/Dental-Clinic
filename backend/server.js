@@ -13,8 +13,9 @@ const db = mysql.createPool({
     database: 'dental_clinic'
 });
 
-const logActivity = (action) => {
-    db.query('INSERT INTO activity_logs (action) VALUES (?)', [action]);
+const logActivity = (event, description) => {
+    const combinedLog = `${event}|${description}`;
+    db.query('INSERT INTO activity_logs (action) VALUES (?)', [combinedLog]);
 };
 
 app.post('/api/login', (req, res) => {
@@ -22,7 +23,7 @@ app.post('/api/login', (req, res) => {
     db.query('SELECT * FROM users WHERE username = ? AND password = ?', [username, password], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         if (results.length > 0) {
-            // Removed login logging to keep logs focused on system data changes
+            logActivity('AUTH', `User session initiated for system administrator: ${username}`);
             res.json({ success: true, user: results[0].username });
         } else {
             res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -34,7 +35,8 @@ app.get('/api/dashboard/stats', (req, res) => {
     const queries = {
         weeklyCustomers: 'SELECT COUNT(DISTINCT patient_id) as count FROM transactions WHERE transaction_date >= DATE_SUB(NOW(), INTERVAL 1 WEEK)',
         proceduresChart: 'SELECT p.name, COUNT(t.id) as value FROM transactions t JOIN procedures p ON t.procedure_id = p.id GROUP BY p.name',
-        revenueChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, SUM(amount_paid) as total FROM transactions WHERE transaction_date >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY day ORDER BY transaction_date ASC"
+        revenueChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, SUM(amount_paid) as total FROM transactions WHERE transaction_date >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY day ORDER BY transaction_date ASC",
+        usersChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, COUNT(DISTINCT patient_id) as users FROM transactions WHERE transaction_date >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY day ORDER BY transaction_date ASC"
     };
 
     db.query(queries.weeklyCustomers, (err, custRes) => {
@@ -43,10 +45,14 @@ app.get('/api/dashboard/stats', (req, res) => {
             if (err) return res.status(500).json({ error: err.message });
             db.query(queries.revenueChart, (err, revRes) => {
                 if (err) return res.status(500).json({ error: err.message });
-                res.json({
-                    weeklyCustomers: custRes[0].count,
-                    procedures: procRes,
-                    revenue: revRes
+                db.query(queries.usersChart, (err, userRes) => {
+                    if (err) return res.status(500).json({ error: err.message });
+                    res.json({
+                        weeklyCustomers: custRes[0].count,
+                        procedures: procRes,
+                        revenue: revRes,
+                        users: userRes
+                    });
                 });
             });
         });
@@ -104,8 +110,7 @@ app.post('/api/patients', (req, res) => {
         db.query(sql, [uniqueId, firstName, middleName, lastName, age, cellphone, address, photo], (err) => {
             if (err) return res.status(500).json({ error: err.message });
             
-            // Log shows exact Unique ID and Name
-            logActivity(`Registered new patient: ${firstName} ${lastName} (${uniqueId})`);
+            logActivity('REGISTRATION', `Successfully registered new profile for ${firstName} ${lastName} under ID: ${uniqueId}`);
             res.json({ success: true, uniqueId });
         });
     });
@@ -118,7 +123,8 @@ app.get('/api/patients', (req, res) => {
     const { query } = req.query;
 
     let countSql = 'SELECT COUNT(*) as total FROM patients';
-    let dataSql = 'SELECT id, unique_id, first_name, last_name, contact_number FROM patients';
+    // Added middle_name to the select query
+    let dataSql = 'SELECT id, unique_id, first_name, middle_name, last_name, contact_number FROM patients';
     let params = [];
 
     if (query) {
@@ -241,7 +247,6 @@ app.get('/api/transactions', (req, res) => {
 app.post('/api/transactions', (req, res) => {
     const { patient_id, procedure_id, amount_paid } = req.body;
     
-    // Fetch detailed info first to construct a highly specific log
     const logQuery = `
         SELECT p.unique_id, p.first_name, p.last_name, pr.name as procedure_name 
         FROM patients p, procedures pr 
@@ -250,7 +255,6 @@ app.post('/api/transactions', (req, res) => {
     
     db.query(logQuery, [patient_id, procedure_id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
-        
         const detail = results[0];
         
         db.query(
@@ -259,11 +263,10 @@ app.post('/api/transactions', (req, res) => {
             (err, result) => {
                 if (err) return res.status(500).json({ error: err.message });
                 
-                // Detailed Log Example: "Processed PHP 1500 payment for Teeth Cleaning - Patient: John Doe (F26001)"
                 if (detail) {
-                    logActivity(`Processed PHP ${amount_paid} payment for ${detail.procedure_name} - Patient: ${detail.first_name} ${detail.last_name} (${detail.unique_id})`);
+                    logActivity('PAYMENT', `Settled PHP ${amount_paid} for ${detail.procedure_name} (Patient: ${detail.first_name} ${detail.last_name} | ID: ${detail.unique_id})`);
                 } else {
-                    logActivity(`Processed payment for patient ID: ${patient_id}`);
+                    logActivity('PAYMENT', `Processed payment for local patient ID: ${patient_id}`);
                 }
                 
                 res.json({ success: true, transactionId: result.insertId });
