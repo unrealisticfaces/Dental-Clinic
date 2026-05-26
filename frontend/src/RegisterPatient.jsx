@@ -2,10 +2,11 @@ import { useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import Webcam from 'react-webcam';
-import { Camera, Save, RefreshCw, UserCheck } from 'lucide-react';
+import { Camera, Save, RefreshCw, UserCheck, Upload } from 'lucide-react';
 
 export default function RegisterPatient() {
   const webcamRef = useRef(null);
+  const fileInputRef = useRef(null);
   const [photo, setPhoto] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -23,6 +24,17 @@ export default function RegisterPatient() {
     setPhoto(imageSrc);
   }, [webcamRef]);
 
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhoto(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -30,7 +42,7 @@ export default function RegisterPatient() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!photo) {
-      toast.warn("Please capture a patient photo before registering.");
+      toast.warn("Please capture or upload a patient photo before registering.");
       return;
     }
 
@@ -45,13 +57,11 @@ export default function RegisterPatient() {
       if (response.data.success) {
         toast.success(`Registration complete! ID generated: ${response.data.uniqueId}`, { autoClose: 5000 });
         
-        // Reset form after successful submission
         setFormData({ firstName: '', middleName: '', lastName: '', age: '', cellphone: '', address: '' });
         setPhoto(null);
       }
     } catch (error) {
       toast.error("Registration failed. Check server connection.");
-      console.error(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -69,7 +79,6 @@ export default function RegisterPatient() {
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Left Column: Photo Capture Container */}
         <div className="lg:col-span-1 bg-[#1e293b] p-6 rounded-2xl border border-slate-700/60 shadow-xl h-fit">
           <h3 className="text-slate-200 text-lg font-bold mb-4">Patient Photo</h3>
           
@@ -86,21 +95,41 @@ export default function RegisterPatient() {
             )}
           </div>
           
-          <button 
-            type="button" 
-            onClick={photo ? () => setPhoto(null) : capture}
-            className={`w-full flex items-center justify-center gap-2 p-3 rounded-xl transition font-medium ${
-              photo 
-                ? 'bg-slate-700 hover:bg-slate-600 text-white' 
-                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20'
-            }`}
-          >
-            {photo ? <RefreshCw size={18} /> : <Camera size={18} />}
-            {photo ? 'Retake Photo' : 'Capture Photo'}
-          </button>
+          <div className="flex gap-2">
+            <button 
+              type="button" 
+              onClick={photo ? () => setPhoto(null) : capture}
+              className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl transition font-medium ${
+                photo 
+                  ? 'bg-slate-700 hover:bg-slate-600 text-white' 
+                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20'
+              }`}
+            >
+              {photo ? <RefreshCw size={18} /> : <Camera size={18} />}
+              {photo ? 'Retake' : 'Capture'}
+            </button>
+
+            {!photo && (
+              <>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  ref={fileInputRef} 
+                  onChange={handleFileUpload} 
+                />
+                <button 
+                  type="button" 
+                  onClick={() => fileInputRef.current.click()}
+                  className="flex-1 flex items-center justify-center gap-2 p-3 rounded-xl transition font-medium bg-slate-700 hover:bg-slate-600 text-white shadow-lg"
+                >
+                  <Upload size={18} /> Upload
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Right Column: Information Form */}
         <div className="lg:col-span-2 bg-[#1e293b] p-8 rounded-2xl border border-slate-700/60 shadow-xl">
           <h3 className="text-slate-200 text-lg font-bold mb-6">Personal Information</h3>
           

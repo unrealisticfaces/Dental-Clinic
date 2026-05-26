@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { Search, User, ChevronRight, ChevronLeft, Activity, MapPin, Phone, Hash, Copy, Check } from 'lucide-react';
+import { Search, ChevronRight, ChevronLeft, Activity, Receipt, Calendar, User, CreditCard } from 'lucide-react';
 
-export default function PatientDirectory() {
-  const [patients, setPatients] = useState([]);
+export default function TransactionHistory() {
+  const [transactions, setTransactions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
-  const [copiedId, setCopiedId] = useState(null);
+  const [selectedTxn, setSelectedTxn] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const limit = 10;
   const navigate = useNavigate();
 
@@ -19,52 +18,36 @@ export default function PatientDirectory() {
   }, [searchQuery]);
 
   useEffect(() => {
-    const fetchPatients = async () => {
+    const fetchTransactions = async () => {
+      setIsLoading(true);
       try {
-        const response = await axios.get(`http://localhost:5000/api/patients?query=${searchQuery}&page=${currentPage}&limit=${limit}`);
-        setPatients(response.data.data || []);
+        const response = await axios.get(`http://localhost:5000/api/transactions?query=${searchQuery}&page=${currentPage}&limit=${limit}`);
+        setTransactions(response.data.data || []);
         setTotalPages(response.data.pagination?.totalPages || 1);
       } catch (error) {
         console.error(error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     if (searchQuery === '') {
-      fetchPatients();
+      fetchTransactions();
     } else {
       const delayDebounceFn = setTimeout(() => {
-        fetchPatients();
+        fetchTransactions();
       }, 300);
       return () => clearTimeout(delayDebounceFn);
     }
   }, [searchQuery, currentPage]);
-
-  const handlePreview = async (patient) => {
-    setIsLoadingPreview(true);
-    try {
-      const response = await axios.get(`http://localhost:5000/api/patients/${patient.id}`);
-      setSelectedPatient(response.data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoadingPreview(false);
-    }
-  };
-
-  const handleCopyId = (e, id) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(id);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
 
   return (
     <div className="max-w-7xl mx-auto pb-10 h-full flex flex-col">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <User className="text-amber-500" size={24} />
-            Patient Directory
+            <Receipt className="text-amber-500" size={24} />
+            Transaction History
           </h2>
         </div>
         
@@ -74,58 +57,57 @@ export default function PatientDirectory() {
           </div>
           <input 
             type="text" 
-            placeholder="Search patient..." 
+            placeholder="Search by ID, Name, Procedure..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 bg-[#1e293b] border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all text-sm shadow-sm"
-            autoFocus
           />
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
         <div className="lg:col-span-2 bg-[#1e293b] rounded-xl border border-slate-700/60 shadow-lg overflow-hidden flex flex-col h-[600px]">
-          <div className="overflow-x-auto flex-1">
+          <div className="overflow-x-auto flex-1 relative">
+            {isLoading && (
+              <div className="absolute inset-0 bg-[#1e293b]/80 z-20 flex items-center justify-center backdrop-blur-sm">
+                <Activity className="animate-pulse text-amber-500" size={32} />
+              </div>
+            )}
             <table className="w-full text-left text-sm text-slate-300">
               <thead className="bg-slate-800/80 text-slate-400 uppercase text-[11px] font-semibold tracking-wider sticky top-0 z-10 backdrop-blur-sm">
                 <tr>
-                  <th className="px-6 py-4 w-1/4">Patient ID</th>
-                  <th className="px-6 py-4">Full Name</th>
-                  <th className="px-6 py-4 text-right">Contact Number</th>
+                  <th className="px-6 py-4">TXN ID</th>
+                  <th className="px-6 py-4">Patient</th>
+                  <th className="px-6 py-4">Procedure</th>
+                  <th className="px-6 py-4 text-right">Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
-                {patients.length > 0 ? (
-                  patients.map((patient) => (
+                {transactions.length > 0 ? (
+                  transactions.map((txn) => (
                     <tr 
-                      key={patient.id} 
-                      onClick={() => handlePreview(patient)}
-                      className={`hover:bg-slate-700/40 cursor-pointer transition-colors border-l-2 ${selectedPatient?.id === patient.id ? 'bg-slate-700/50 border-amber-500' : 'border-transparent'}`}
+                      key={txn.id} 
+                      onClick={() => setSelectedTxn(txn)}
+                      className={`hover:bg-slate-700/40 cursor-pointer transition-colors border-l-2 ${selectedTxn?.id === txn.id ? 'bg-slate-700/50 border-amber-500' : 'border-transparent'}`}
                     >
                       <td className="px-6 py-4 font-mono text-sm font-medium text-amber-500">
-                        <div className="flex items-center gap-2">
-                          {patient.unique_id}
-                          <button 
-                            onClick={(e) => handleCopyId(e, patient.unique_id)}
-                            className="p-1 rounded hover:bg-amber-500/20 transition-colors text-amber-500/70 hover:text-amber-500"
-                            title="Copy ID"
-                          >
-                            {copiedId === patient.unique_id ? <Check size={14} /> : <Copy size={14} />}
-                          </button>
-                        </div>
+                        TXN-{String(txn.id).padStart(6, '0')}
                       </td>
                       <td className="px-6 py-4 font-medium text-white text-base">
-                        {patient.first_name} {patient.last_name}
+                        {txn.first_name} {txn.last_name}
                       </td>
-                      <td className="px-6 py-4 text-right text-slate-400 font-medium">
-                        {patient.contact_number}
+                      <td className="px-6 py-4 text-slate-300">
+                        {txn.procedure_name}
+                      </td>
+                      <td className="px-6 py-4 text-right text-slate-400 font-medium whitespace-nowrap">
+                        {new Date(txn.transaction_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="3" className="p-8 text-center text-slate-500 text-sm">
-                      No patients found
+                    <td colSpan="4" className="p-8 text-center text-slate-500 text-sm">
+                      {!isLoading && 'No transactions found'}
                     </td>
                   </tr>
                 )}
@@ -157,70 +139,60 @@ export default function PatientDirectory() {
         </div>
 
         <div className="lg:col-span-1 bg-[#1e293b] rounded-xl border border-slate-700/60 shadow-lg p-6 flex flex-col items-center justify-center h-[600px] relative">
-          {isLoadingPreview ? (
-            <Activity className="animate-pulse text-amber-500" size={32} />
-          ) : selectedPatient ? (
+          {selectedTxn ? (
             <div className="w-full flex flex-col items-center text-center animate-in fade-in duration-200">
-              <div className="w-24 h-24 mb-4 relative">
-                {selectedPatient.photo ? (
-                  <img src={selectedPatient.photo} alt="Profile" className="w-full h-full rounded-full object-cover border-2 border-slate-600 shadow-md" />
-                ) : (
-                  <div className="w-full h-full rounded-full bg-slate-800 flex items-center justify-center border-2 border-slate-600 shadow-md">
-                    <User className="text-slate-400" size={36} />
-                  </div>
-                )}
+              <div className="w-20 h-20 mb-4 bg-amber-500/10 rounded-full flex items-center justify-center border-2 border-amber-500/20 shadow-lg">
+                <Receipt className="text-amber-500" size={36} />
               </div>
               
-              <h3 className="text-xl font-bold text-white mb-1 tracking-tight">
-                {selectedPatient.first_name} {selectedPatient.last_name}
+              <h3 className="text-xl font-bold text-white tracking-tight">
+                TXN-{String(selectedTxn.id).padStart(6, '0')}
               </h3>
-              <p className="text-amber-500 font-mono text-xs font-medium mb-5">
-                {selectedPatient.unique_id}
+              <p className="text-slate-400 text-sm font-medium mb-6">
+                {new Date(selectedTxn.transaction_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
 
               <div className="w-full bg-[#0f172a]/60 rounded-xl border border-slate-700/50 p-4 mb-6 space-y-4">
                 <div className="flex items-start gap-3 text-left">
                   <div className="bg-amber-500/10 p-2 rounded-lg text-amber-500 mt-0.5 shrink-0">
-                    <Hash size={14} />
+                    <User size={14} />
                   </div>
                   <div>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">Age</p>
-                    <p className="text-slate-200 text-sm font-medium">{selectedPatient.age} Years Old</p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">Billed To</p>
+                    <p className="text-slate-200 text-sm font-medium">{selectedTxn.first_name} {selectedTxn.last_name}</p>
+                    <p className="text-slate-500 text-xs font-mono">{selectedTxn.unique_id}</p>
                   </div>
                 </div>
                 
                 <div className="flex items-start gap-3 text-left">
                   <div className="bg-amber-500/10 p-2 rounded-lg text-amber-500 mt-0.5 shrink-0">
-                    <Phone size={14} />
+                    <Activity size={14} />
                   </div>
                   <div>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">Contact</p>
-                    <p className="text-slate-200 text-sm font-medium">{selectedPatient.contact_number}</p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">Procedure</p>
+                    <p className="text-slate-200 text-sm font-medium leading-snug">{selectedTxn.procedure_name}</p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 text-left">
-                  <div className="bg-amber-500/10 p-2 rounded-lg text-amber-500 mt-0.5 shrink-0">
-                    <MapPin size={14} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">Address</p>
-                    <p className="text-slate-200 text-sm font-medium line-clamp-2 leading-snug">{selectedPatient.address}</p>
-                  </div>
+                <div className="pt-4 mt-2 border-t border-slate-700/50">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1 text-center">Amount Settled</p>
+                  <p className="text-amber-500 text-2xl font-black font-mono">
+                    PHP {Number(selectedTxn.amount_paid).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </p>
                 </div>
               </div>
 
               <button 
-                onClick={() => navigate(`/patients/view/${selectedPatient.id}`)}
+                onClick={() => navigate(`/transactions/receipt/${selectedTxn.id}`)}
                 className="w-full bg-amber-500 hover:bg-amber-600 text-[#0f172a] font-bold text-sm py-3 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-1.5"
               >
-                Open Full Profile <ChevronRight size={16} strokeWidth={2.5} />
+                Open Official Receipt <ChevronRight size={16} strokeWidth={2.5} />
               </button>
             </div>
           ) : (
             <div className="text-center opacity-60">
-              <User className="text-slate-500 mx-auto mb-3" size={40} />
-              <p className="text-slate-400 text-sm font-medium">Select a patient to preview</p>
+              <CreditCard className="text-slate-500 mx-auto mb-3" size={40} />
+              <p className="text-slate-400 text-sm font-medium">Select a transaction to preview</p>
             </div>
           )}
         </div>
