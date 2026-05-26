@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { Printer, ArrowLeft, CheckCircle2, Activity, Phone, MapPin, Mail } from 'lucide-react';
+import { Printer, ArrowLeft, CheckCircle2, Activity, Phone, MapPin, Mail, Download } from 'lucide-react';
 
 export default function Receipt() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams(); // To handle the ?action=download parameter
   const [transaction, setTransaction] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -22,6 +23,15 @@ export default function Receipt() {
     };
     fetchTransaction();
   }, [id]);
+
+  // If the user arrived with ?action=download, automatically trigger the print dialog.
+  useEffect(() => {
+    if (!isLoading && transaction && searchParams.get('action') === 'download') {
+      setTimeout(() => {
+        window.print();
+      }, 500); // Small delay to ensure CSS renders before print fires
+    }
+  }, [isLoading, transaction, searchParams]);
 
   const handlePrint = () => {
     window.print();
@@ -46,10 +56,6 @@ export default function Receipt() {
 
   return (
     <>
-      {/* THE FIX: 
-        1. Removed 'padding: 20px' so it inherits the exact padding of the screen.
-        2. webkit-print-color-adjust forces the exact colors to render.
-      */}
       <style>
         {`
           @media print {
@@ -65,9 +71,14 @@ export default function Receipt() {
             }
             #printable-receipt {
               position: absolute;
-              left: 0;
+              left: 50%;
               top: 0;
+              transform: translateX(-50%);
               width: 100%;
+              max-width: 48rem !important;
+              margin: 0;
+              padding: 2rem !important;
+              border-top: 8px solid #2563eb !important; 
             }
           }
         `}
@@ -75,7 +86,7 @@ export default function Receipt() {
 
       <div className="max-w-3xl mx-auto pb-10 h-full flex flex-col">
         
-        {/* Action Bar (Hidden during Print) */}
+        {/* Action Bar */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 print:hidden">
           <div className="flex items-center gap-3">
             <button 
@@ -86,17 +97,23 @@ export default function Receipt() {
             </button>
           </div>
           
-          <button 
-            onClick={handlePrint}
-            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2.5 rounded-lg shadow-lg flex items-center gap-2 transition-all w-full sm:w-auto justify-center"
-          >
-            <Printer size={18} /> Print Official Receipt
-          </button>
+          <div className="flex gap-3 w-full sm:w-auto">
+            <button 
+              onClick={handlePrint}
+              className="bg-[#1e293b] hover:bg-slate-800 border border-slate-600 text-white font-medium px-4 py-2.5 rounded-lg transition-all w-full sm:w-auto flex justify-center items-center gap-2"
+            >
+              <Printer size={18} /> Print
+            </button>
+            <button 
+              onClick={handlePrint} // Same logic. Ask user to choose "Save as PDF" in dialog
+              className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2.5 rounded-lg shadow-lg flex items-center gap-2 transition-all w-full sm:w-auto justify-center"
+            >
+              <Download size={18} /> Save as PDF
+            </button>
+          </div>
         </div>
 
-        {/* The Receipt Paper 
-            THE FIX 2: Removed "print:border-none" so the blue top line stays visible!
-        */}
+        {/* The Receipt Paper */}
         <div 
           id="printable-receipt" 
           className="bg-white text-slate-800 rounded-lg shadow-2xl p-8 md:p-12 border-t-8 border-blue-600 print:shadow-none"
@@ -151,10 +168,8 @@ export default function Receipt() {
             </table>
           </div>
 
-          {/* Perfectly Aligned Signatures & Total Block */}
+          {/* Signatures & Total Block */}
           <div className="mt-8 pt-8 border-t-2 border-slate-200">
-            
-            {/* ROW 1: Labels above the lines */}
             <div className="flex justify-between items-end mb-2">
               <div className="flex items-center gap-2 text-emerald-600">
                 <CheckCircle2 size={20} />
@@ -163,12 +178,9 @@ export default function Receipt() {
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest text-right pr-2">Total Paid</p>
             </div>
 
-            {/* ROW 2: The Lines (Locked to items-end baseline) */}
             <div className="flex flex-row justify-between items-end">
-              {/* Left Side: Signature Line */}
               <div className="w-48 sm:w-64 border-b border-slate-500 pb-1"></div>
               
-              {/* Right Side: Total Amount */}
               <div className="text-right inline-block border-b-[3px] border-double border-slate-800 pb-1 pr-1">
                 <span className="text-2xl sm:text-3xl font-black font-mono text-slate-800 leading-none">
                   PHP {Number(transaction.amount_paid).toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -176,13 +188,11 @@ export default function Receipt() {
               </div>
             </div>
 
-            {/* ROW 3: Sub-labels below the lines */}
             <div className="flex flex-row justify-between items-start mt-2">
               <div className="w-48 sm:w-64 text-center">
                 <p className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-widest font-bold">Authorized Signature</p>
               </div>
             </div>
-
           </div>
 
           {/* Footer */}

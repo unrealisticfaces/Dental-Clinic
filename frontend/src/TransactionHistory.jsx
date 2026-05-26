@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { Search, ChevronRight, ChevronLeft, Activity, Receipt, Calendar, User, CreditCard } from 'lucide-react';
+import { Search, ChevronRight, ChevronLeft, Activity, Receipt, User, CreditCard } from 'lucide-react';
 
 export default function TransactionHistory() {
   const [transactions, setTransactions] = useState([]);
@@ -46,8 +46,9 @@ export default function TransactionHistory() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Receipt className="text-amber-500" size={24} />
-            Transaction History
+            {/* UPDATED ICON AND TEXT TO SEARCH TRANSACTIONS */}
+            <Search className="text-amber-500" size={24} />
+            Search Transactions
           </h2>
         </div>
         

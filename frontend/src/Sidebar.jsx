@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Users, CreditCard, Activity, ChevronDown, LayoutDashboard, 
-  LogOut, Hexagon, UserPlus, Search, Receipt, List 
+  LogOut, Hexagon, UserPlus, Search, Receipt 
 } from 'lucide-react';
 
 export default function Sidebar({ onLogout }) {
@@ -61,8 +61,9 @@ export default function Sidebar({ onLogout }) {
                 <Link to="/transactions/payment" className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${isActive('/transactions/payment') ? 'bg-slate-800 text-amber-400' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}>
                   <Receipt size={16} /> Process Payment
                 </Link>
+                {/* RENAMED FROM TRANSACTION HISTORY TO SEARCH TRANSACTIONS */}
                 <Link to="/transactions/search" className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${isActive('/transactions/search') ? 'bg-slate-800 text-amber-400' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}>
-                  <List size={16} /> Transaction History
+                  <Search size={16} /> Search Transactions
                 </Link>
               </div>
             </div>
