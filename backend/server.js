@@ -1,37 +1,84 @@
 const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// In a real production environment, store this in a .env file!
+const JWT_SECRET = 'dental_clinic_super_secret_key_2024'; 
+
 const db = mysql.createPool({
     host: 'localhost',
     user: 'root',
-    password: 'root',
+    password: 'root', // Change this if your local DB password is different
     database: 'dental_clinic'
 });
 
+// --- HELPER: LOG ACTIVITY ---
 const logActivity = (event, description) => {
     const combinedLog = `${event}|${description}`;
     db.query('INSERT INTO activity_logs (action) VALUES (?)', [combinedLog]);
 };
 
+// --- SECURITY MIDDLEWARE ---
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Expects "Bearer <token>"
+
+    if (!token) return res.status(401).json({ message: 'Access Denied: No Token Provided' });
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ message: 'Access Denied: Invalid or Expired Token' });
+        req.user = user;
+        next();
+    });
+};
+
+// ==========================================
+// PUBLIC ROUTES (No Token Required)
+// ==========================================
+
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
-    db.query('SELECT * FROM users WHERE username = ? AND password = ?', [username, password], (err, results) => {
+    
+    db.query('SELECT * FROM users WHERE username = ?', [username], async (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
-        if (results.length > 0) {
-            logActivity('AUTH', `User session initiated for system administrator: ${username}`);
-            res.json({ success: true, user: results[0].username });
-        } else {
-            res.status(401).json({ success: false, message: 'Invalid credentials' });
+        
+        if (results.length === 0) {
+            return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
+
+        const user = results[0];
+        
+        // Compare password with hashed database password
+        const isMatch = await bcrypt.compare(password, user.password);
+        
+        if (!isMatch) {
+            return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
+
+        // Generate Token
+        const token = jwt.sign(
+            { id: user.id, username: user.username }, 
+            JWT_SECRET, 
+            { expiresIn: '8h' }
+        );
+
+        logActivity('AUTH', `User session initiated for system administrator: ${username}`);
+        res.json({ success: true, user: user.username, token });
     });
 });
 
-app.get('/api/dashboard/stats', (req, res) => {
+// ==========================================
+// PROTECTED ROUTES (Token Required)
+// ==========================================
+
+// --- DASHBOARD & LOGS ---
+app.get('/api/dashboard/stats', authenticateToken, (req, res) => {
     const queries = {
         weeklyCustomers: 'SELECT COUNT(DISTINCT patient_id) as count FROM transactions WHERE transaction_date >= DATE_SUB(NOW(), INTERVAL 1 WEEK)',
         proceduresChart: 'SELECT p.name, COUNT(t.id) as value FROM transactions t JOIN procedures p ON t.procedure_id = p.id GROUP BY p.name',
@@ -59,7 +106,7 @@ app.get('/api/dashboard/stats', (req, res) => {
     });
 });
 
-app.get('/api/logs', (req, res) => {
+app.get('/api/logs', authenticateToken, (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 15;
     const offset = (page - 1) * limit;
@@ -81,52 +128,42 @@ app.get('/api/logs', (req, res) => {
     
     db.query(countSql, params, (err, countResult) => {
         if (err) return res.status(500).json({ error: err.message });
-        
         const total = countResult[0].total;
         const totalPages = Math.ceil(total / limit);
-
         db.query(dataSql, [...params, limit, offset], (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
-            res.json({
-                data: results,
-                pagination: { total, totalPages, currentPage: page, limit }
-            });
+            res.json({ data: results, pagination: { total, totalPages, currentPage: page, limit } });
         });
     });
 });
 
-app.post('/api/patients', (req, res) => {
+// --- PATIENTS ---
+app.post('/api/patients', authenticateToken, (req, res) => {
     const { firstName, middleName, lastName, age, cellphone, address, photo } = req.body;
     const year = new Date().getFullYear().toString().slice(-2);
-    
     db.query(`SELECT COUNT(*) as count FROM patients WHERE unique_id LIKE 'F${year}%'`, (err, result) => {
         if (err) return res.status(500).json({ error: err.message });
-        
         const nextNumber = (result[0].count + 1).toString().padStart(3, '0');
         const uniqueId = `F${year}${nextNumber}`;
-
         const sql = `INSERT INTO patients (unique_id, first_name, middle_name, last_name, age, contact_number, address, photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-        
         db.query(sql, [uniqueId, firstName, middleName, lastName, age, cellphone, address, photo], (err) => {
             if (err) return res.status(500).json({ error: err.message });
-            
             logActivity('REGISTRATION', `Successfully registered new profile for ${firstName} ${lastName} under ID: ${uniqueId}`);
             res.json({ success: true, uniqueId });
         });
     });
 });
 
-app.get('/api/patients', (req, res) => {
+app.get('/api/patients', authenticateToken, (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
     const { query } = req.query;
-
+    
     let countSql = 'SELECT COUNT(*) as total FROM patients';
-    // Added middle_name to the select query
     let dataSql = 'SELECT id, unique_id, first_name, middle_name, last_name, contact_number FROM patients';
     let params = [];
-
+    
     if (query) {
         const searchCondition = ' WHERE unique_id LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR contact_number LIKE ?';
         countSql += searchCondition;
@@ -134,26 +171,21 @@ app.get('/api/patients', (req, res) => {
         const searchParam = `%${query}%`;
         params = [searchParam, searchParam, searchParam, searchParam];
     }
-
+    
     dataSql += ' ORDER BY id DESC LIMIT ? OFFSET ?';
     
     db.query(countSql, params, (err, countResult) => {
         if (err) return res.status(500).json({ error: err.message });
-        
         const total = countResult[0].total;
         const totalPages = Math.ceil(total / limit);
-
         db.query(dataSql, [...params, limit, offset], (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
-            res.json({
-                data: results,
-                pagination: { total, totalPages, currentPage: page, limit }
-            });
+            res.json({ data: results, pagination: { total, totalPages, currentPage: page, limit } });
         });
     });
 });
 
-app.get('/api/patients/search', (req, res) => {
+app.get('/api/patients/search', authenticateToken, (req, res) => {
     const { q } = req.query;
     const searchQuery = `%${q}%`;
     db.query(
@@ -166,56 +198,59 @@ app.get('/api/patients/search', (req, res) => {
     );
 });
 
-app.get('/api/patients/:id', (req, res) => {
+app.get('/api/patients/:id', authenticateToken, (req, res) => {
     db.query('SELECT * FROM patients WHERE id = ?', [req.params.id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results[0] || {});
     });
 });
 
-app.get('/api/patients/:id/history', (req, res) => {
+app.get('/api/patients/:id/history', authenticateToken, (req, res) => {
     const { id } = req.params;
-    const sql = `
-        SELECT t.id, t.amount_paid, t.transaction_date, p.name as procedure_name 
-        FROM transactions t 
-        JOIN procedures p ON t.procedure_id = p.id 
-        WHERE t.patient_id = ? 
-        ORDER BY t.transaction_date DESC
-    `;
-    
+    const sql = `SELECT t.id, t.amount_paid, t.transaction_date, p.name as procedure_name FROM transactions t JOIN procedures p ON t.procedure_id = p.id WHERE t.patient_id = ? ORDER BY t.transaction_date DESC`;
     db.query(sql, [id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
     });
 });
 
-app.get('/api/procedures', (req, res) => {
+// --- CLINICAL DENTAL CHART ---
+app.get('/api/patients/:id/chart', authenticateToken, (req, res) => {
+    const { id } = req.params;
+    const sql = `SELECT * FROM dental_charts WHERE patient_id = ? ORDER BY created_at DESC`;
+    db.query(sql, [id], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+app.post('/api/patients/:id/chart', authenticateToken, (req, res) => {
+    const { id } = req.params;
+    const { tooth_number, condition_name, notes } = req.body;
+    const sql = `INSERT INTO dental_charts (patient_id, tooth_number, condition_name, notes) VALUES (?, ?, ?, ?)`;
+    db.query(sql, [id, tooth_number, condition_name, notes], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        logActivity('CLINICAL', `Updated dental chart for patient ID: ${id}, Tooth: ${tooth_number}`);
+        res.json({ success: true, chartId: result.insertId });
+    });
+});
+
+// --- PROCEDURES & TRANSACTIONS ---
+app.get('/api/procedures', authenticateToken, (req, res) => {
     db.query('SELECT id, name FROM procedures', (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
     });
 });
 
-app.get('/api/transactions', (req, res) => {
+app.get('/api/transactions', authenticateToken, (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
     const { query } = req.query;
 
-    let countSql = `
-        SELECT COUNT(*) as total 
-        FROM transactions t
-        JOIN patients p ON t.patient_id = p.id
-        JOIN procedures pr ON t.procedure_id = pr.id
-    `;
-    
-    let dataSql = `
-        SELECT t.id, t.amount_paid, t.transaction_date, p.unique_id, p.first_name, p.last_name, pr.name as procedure_name
-        FROM transactions t
-        JOIN patients p ON t.patient_id = p.id
-        JOIN procedures pr ON t.procedure_id = pr.id
-    `;
-    
+    let countSql = `SELECT COUNT(*) as total FROM transactions t JOIN patients p ON t.patient_id = p.id JOIN procedures pr ON t.procedure_id = pr.id`;
+    let dataSql = `SELECT t.id, t.amount_paid, t.transaction_date, p.unique_id, p.first_name, p.last_name, pr.name as procedure_name FROM transactions t JOIN patients p ON t.patient_id = p.id JOIN procedures pr ON t.procedure_id = pr.id`;
     let params = [];
 
     if (query) {
@@ -227,63 +262,34 @@ app.get('/api/transactions', (req, res) => {
     }
 
     dataSql += ' ORDER BY t.transaction_date DESC LIMIT ? OFFSET ?';
-    
     db.query(countSql, params, (err, countResult) => {
         if (err) return res.status(500).json({ error: err.message });
-        
         const total = countResult[0].total;
         const totalPages = Math.ceil(total / limit);
-
         db.query(dataSql, [...params, limit, offset], (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
-            res.json({
-                data: results,
-                pagination: { total, totalPages, currentPage: page, limit }
-            });
+            res.json({ data: results, pagination: { total, totalPages, currentPage: page, limit } });
         });
     });
 });
 
-app.post('/api/transactions', (req, res) => {
+app.post('/api/transactions', authenticateToken, (req, res) => {
     const { patient_id, procedure_id, amount_paid } = req.body;
-    
-    const logQuery = `
-        SELECT p.unique_id, p.first_name, p.last_name, pr.name as procedure_name 
-        FROM patients p, procedures pr 
-        WHERE p.id = ? AND pr.id = ?
-    `;
-    
+    const logQuery = `SELECT p.unique_id, p.first_name, p.last_name, pr.name as procedure_name FROM patients p, procedures pr WHERE p.id = ? AND pr.id = ?`;
     db.query(logQuery, [patient_id, procedure_id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         const detail = results[0];
-        
-        db.query(
-            'INSERT INTO transactions (patient_id, procedure_id, amount_paid, transaction_date) VALUES (?, ?, ?, NOW())',
-            [patient_id, procedure_id, amount_paid],
-            (err, result) => {
-                if (err) return res.status(500).json({ error: err.message });
-                
-                if (detail) {
-                    logActivity('PAYMENT', `Settled PHP ${amount_paid} for ${detail.procedure_name} (Patient: ${detail.first_name} ${detail.last_name} | ID: ${detail.unique_id})`);
-                } else {
-                    logActivity('PAYMENT', `Processed payment for local patient ID: ${patient_id}`);
-                }
-                
-                res.json({ success: true, transactionId: result.insertId });
-            }
-        );
+        db.query('INSERT INTO transactions (patient_id, procedure_id, amount_paid, transaction_date) VALUES (?, ?, ?, NOW())', [patient_id, procedure_id, amount_paid], (err, result) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if (detail) logActivity('PAYMENT', `Settled PHP ${amount_paid} for ${detail.procedure_name} (Patient: ${detail.first_name} ${detail.last_name} | ID: ${detail.unique_id})`);
+            res.json({ success: true, transactionId: result.insertId });
+        });
     });
 });
 
-app.get('/api/transactions/:id', (req, res) => {
+app.get('/api/transactions/:id', authenticateToken, (req, res) => {
     const { id } = req.params;
-    const query = `
-        SELECT t.id, t.amount_paid, t.transaction_date, p.unique_id, p.first_name, p.last_name, pr.name as procedure_name
-        FROM transactions t
-        JOIN patients p ON t.patient_id = p.id
-        JOIN procedures pr ON t.procedure_id = pr.id
-        WHERE t.id = ?
-    `;
+    const query = `SELECT t.id, t.amount_paid, t.transaction_date, p.unique_id, p.first_name, p.last_name, pr.name as procedure_name FROM transactions t JOIN patients p ON t.patient_id = p.id JOIN procedures pr ON t.procedure_id = pr.id WHERE t.id = ?`;
     db.query(query, [id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         if (results.length === 0) return res.status(404).json({ message: 'Transaction not found' });
@@ -291,5 +297,32 @@ app.get('/api/transactions/:id', (req, res) => {
     });
 });
 
+// --- APPOINTMENTS ---
+app.get('/api/appointments', authenticateToken, (req, res) => {
+    const sql = `SELECT * FROM appointments WHERE appointment_date >= CURDATE() ORDER BY appointment_date ASC, appointment_time ASC`;
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+app.post('/api/appointments', authenticateToken, (req, res) => {
+    const { patient_name, contact_number, appointment_date, appointment_time, reason } = req.body;
+    const sql = `INSERT INTO appointments (patient_name, contact_number, appointment_date, appointment_time, reason) VALUES (?, ?, ?, ?, ?)`;
+    db.query(sql, [patient_name, contact_number, appointment_date, appointment_time, reason], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        logActivity('APPOINTMENT', `Scheduled new appointment for ${patient_name} on ${appointment_date}`);
+        res.json({ success: true, appointmentId: result.insertId });
+    });
+});
+
+app.put('/api/appointments/:id/status', authenticateToken, (req, res) => {
+    const { status } = req.body;
+    db.query('UPDATE appointments SET status = ? WHERE id = ?', [status, req.params.id], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    });
+});
+
 const PORT = 5000;
-app.listen(PORT, () => console.log(`Backend server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Backend server secured & running on port ${PORT}`));
