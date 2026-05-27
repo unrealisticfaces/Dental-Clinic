@@ -27,7 +27,7 @@ const logActivity = (event, description) => {
 // --- SECURITY MIDDLEWARE ---
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Expects "Bearer <token>"
+    const token = authHeader && authHeader.split(' ')[1]; 
 
     if (!token) return res.status(401).json({ message: 'Access Denied: No Token Provided' });
 
@@ -53,15 +53,12 @@ app.post('/api/login', (req, res) => {
         }
 
         const user = results[0];
-        
-        // Compare password with hashed database password
         const isMatch = await bcrypt.compare(password, user.password);
         
         if (!isMatch) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
-        // Generate Token
         const token = jwt.sign(
             { id: user.id, username: user.username }, 
             JWT_SECRET, 
@@ -80,10 +77,15 @@ app.post('/api/login', (req, res) => {
 // --- DASHBOARD & LOGS ---
 app.get('/api/dashboard/stats', authenticateToken, (req, res) => {
     const queries = {
-        weeklyCustomers: 'SELECT COUNT(DISTINCT patient_id) as count FROM transactions WHERE transaction_date >= DATE_SUB(NOW(), INTERVAL 1 WEEK)',
+        // ALL TIME data for total patients
+        weeklyCustomers: 'SELECT COUNT(DISTINCT patient_id) as count FROM transactions',
+        
+        // ALL TIME data for procedure distribution
         proceduresChart: 'SELECT p.name, COUNT(t.id) as value FROM transactions t JOIN procedures p ON t.procedure_id = p.id GROUP BY p.name',
-        revenueChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, SUM(amount_paid) as total FROM transactions WHERE transaction_date >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY day ORDER BY transaction_date ASC",
-        usersChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, COUNT(DISTINCT patient_id) as users FROM transactions WHERE transaction_date >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY day ORDER BY transaction_date ASC"
+        
+        // BULLETPROOF CHARTS: Gets the last 7 active days of data, no matter how old the data is!
+        revenueChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, SUM(amount_paid) as total FROM transactions GROUP BY DATE(transaction_date), day ORDER BY DATE(transaction_date) DESC LIMIT 7",
+        usersChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, COUNT(DISTINCT patient_id) as users FROM transactions GROUP BY DATE(transaction_date), day ORDER BY DATE(transaction_date) DESC LIMIT 7"
     };
 
     db.query(queries.weeklyCustomers, (err, custRes) => {
@@ -94,11 +96,13 @@ app.get('/api/dashboard/stats', authenticateToken, (req, res) => {
                 if (err) return res.status(500).json({ error: err.message });
                 db.query(queries.usersChart, (err, userRes) => {
                     if (err) return res.status(500).json({ error: err.message });
+                    
                     res.json({
                         weeklyCustomers: custRes[0].count,
                         procedures: procRes,
-                        revenue: revRes,
-                        users: userRes
+                        // Reverse arrays so oldest is on the left and newest is on the right of the chart
+                        revenue: revRes.reverse(),
+                        users: userRes.reverse()
                     });
                 });
             });
