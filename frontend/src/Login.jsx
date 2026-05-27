@@ -5,6 +5,8 @@ import { Activity } from 'lucide-react';
 
 export default function Login({ onLogin }) {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
+  // FIX: Added the missing isLoading state!
+  const [isLoading, setIsLoading] = useState(false); 
 
   const handleChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
@@ -12,14 +14,23 @@ export default function Login({ onLogin }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsLoading(true); // Now this works
     try {
+      // Send credentials to the secure backend
       const response = await axios.post('http://localhost:5000/api/login', credentials);
+      
       if (response.data.success) {
+        // IMPORTANT: Save the secure JWT token to the browser
+        localStorage.setItem('token', response.data.token);
+        
         toast.success("Welcome back!");
-        onLogin();
+        onLogin(); // Tell App.jsx we are logged in
       }
     } catch (error) {
-      toast.error("Invalid credentials. Use admin / admin123");
+      // Display the specific error message from the backend if it exists
+      toast.error(error.response?.data?.message || "Invalid credentials");
+    } finally {
+      setIsLoading(false); // Turn off loading state
     }
   };
 
@@ -60,13 +71,17 @@ export default function Login({ onLogin }) {
             />
           </div>
           
-          <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-md shadow-sm transition-all text-sm mt-2">
-            Sign In
+          <button 
+            type="submit" 
+            disabled={isLoading}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-md shadow-sm transition-all text-sm mt-2 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {isLoading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
         
         <div className="mt-5 pt-5 border-t border-gray-100 text-center">
-          <p className="text-xs text-gray-400">Test Account: <span className="text-gray-500 font-mono">admin / admin123</span></p>
+          <p className="text-xs text-gray-400">Secure Access Required</p>
         </div>
       </div>
     </div>

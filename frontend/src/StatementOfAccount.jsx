@@ -72,31 +72,19 @@ export default function StatementOfAccount() {
             }
             body { 
               background-color: white !important; 
-            }
-            * { 
               -webkit-print-color-adjust: exact !important; 
               print-color-adjust: exact !important; 
               color-adjust: exact !important; 
             }
-            body * { 
-              visibility: hidden; 
-            }
-            #printable-statement, #printable-statement * { 
-              visibility: visible; 
-            }
-            #printable-statement {
-              position: absolute; 
-              left: 0; 
-              top: 0; 
-              width: 100% !important; 
-              max-width: 100% !important; 
-              margin: 0 !important; 
-              padding: 0 !important;
-              border: none !important; 
-              box-shadow: none !important;
-            }
             .print-hidden { 
               display: none !important; 
+            }
+            #printable-statement {
+              box-shadow: none !important;
+              border: none !important;
+              margin: 0 auto !important;
+              padding: 0 !important;
+              max-width: 100% !important;
             }
           }
         `}

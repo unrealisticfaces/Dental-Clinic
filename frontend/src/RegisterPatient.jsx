@@ -52,19 +52,15 @@ export default function RegisterPatient() {
   };
 
   const handlePhoneChange = (e) => {
-    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
     setFormData({ ...formData, cellphone: val });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!photo) {
-      toast.warn("Please capture or upload a patient photo before registering.");
-      return;
-    }
 
-    if (formData.cellphone.length !== 11) {
-      toast.warn("Cellphone number must be exactly 11 digits.");
+    if (formData.cellphone.length !== 10) {
+      toast.warn("Cellphone number must be exactly 10 digits.");
       return;
     }
 
@@ -192,10 +188,10 @@ export default function RegisterPatient() {
                 <span className="flex items-center px-3 bg-gray-50 border-r border-gray-300 text-gray-600 text-sm font-semibold">
                   +63
                 </span>
-                <input type="tel" name="cellphone" required placeholder="09123456789" value={formData.cellphone} onChange={handlePhoneChange} maxLength="11"
+                <input type="tel" name="cellphone" required placeholder="9123456789" value={formData.cellphone} onChange={handlePhoneChange} maxLength="10"
                   className="w-full px-3 py-2 bg-transparent text-gray-900 outline-none text-sm font-mono" />
               </div>
-              <p className="text-[10px] text-gray-500 mt-1">Input exactly 11 digits</p>
+              <p className="text-[10px] text-gray-500 mt-1">Input exactly 10 digits</p>
             </div>
 
             <div className="md:col-span-2">

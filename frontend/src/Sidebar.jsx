@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Users, CreditCard, Activity, ChevronDown, LayoutDashboard, 
-  LogOut, Hexagon, UserPlus, Search, Receipt 
+  LogOut, Hexagon, UserPlus, Search, Receipt, Calendar 
 } from 'lucide-react';
 
 export default function Sidebar({ onLogout }) {
@@ -26,6 +26,12 @@ export default function Sidebar({ onLogout }) {
           <Link to="/" className={`flex items-center gap-2.5 p-2 rounded-md transition-all duration-200 ${isActive('/') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
             <LayoutDashboard size={18} className={isActive('/') ? 'text-blue-700' : 'text-gray-500'} /> 
             Dashboard
+          </Link>
+          
+          {/* NEW APPOINTMENTS LINK */}
+          <Link to="/appointments" className={`flex items-center gap-2.5 p-2 rounded-md transition-all duration-200 ${isActive('/appointments') ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
+            <Calendar size={18} className={isActive('/appointments') ? 'text-blue-700' : 'text-gray-500'} /> 
+            Appointments
           </Link>
 
           <div className="pt-2">
