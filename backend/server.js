@@ -77,15 +77,10 @@ app.post('/api/login', (req, res) => {
 // --- DASHBOARD & LOGS ---
 app.get('/api/dashboard/stats', authenticateToken, (req, res) => {
     const queries = {
-        // ALL TIME data for total patients
         weeklyCustomers: 'SELECT COUNT(DISTINCT patient_id) as count FROM transactions',
-        
-        // ALL TIME data for procedure distribution
-        proceduresChart: 'SELECT p.name, COUNT(t.id) as value FROM transactions t JOIN procedures p ON t.procedure_id = p.id GROUP BY p.name',
-        
-        // BULLETPROOF CHARTS: Gets the last 7 active days of data, no matter how old the data is!
-        revenueChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, SUM(amount_paid) as total FROM transactions GROUP BY DATE(transaction_date), day ORDER BY DATE(transaction_date) DESC LIMIT 7",
-        usersChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, COUNT(DISTINCT patient_id) as users FROM transactions GROUP BY DATE(transaction_date), day ORDER BY DATE(transaction_date) DESC LIMIT 7"
+        proceduresChart: 'SELECT p.name, COUNT(t.id) as value FROM transactions t JOIN procedures p ON t.procedure_id = p.id GROUP BY p.name, p.id',
+        revenueChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, SUM(amount_paid) as total FROM transactions GROUP BY DATE(transaction_date), DATE_FORMAT(transaction_date, '%a') ORDER BY DATE(transaction_date) DESC LIMIT 7",
+        usersChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, COUNT(DISTINCT patient_id) as users FROM transactions GROUP BY DATE(transaction_date), DATE_FORMAT(transaction_date, '%a') ORDER BY DATE(transaction_date) DESC LIMIT 7"
     };
 
     db.query(queries.weeklyCustomers, (err, custRes) => {
@@ -100,7 +95,6 @@ app.get('/api/dashboard/stats', authenticateToken, (req, res) => {
                     res.json({
                         weeklyCustomers: custRes[0].count,
                         procedures: procRes,
-                        // Reverse arrays so oldest is on the left and newest is on the right of the chart
                         revenue: revRes.reverse(),
                         users: userRes.reverse()
                     });
@@ -144,18 +138,38 @@ app.get('/api/logs', authenticateToken, (req, res) => {
 // --- PATIENTS ---
 app.post('/api/patients', authenticateToken, (req, res) => {
     const { firstName, middleName, lastName, age, cellphone, address, photo } = req.body;
-    const year = new Date().getFullYear().toString().slice(-2);
-    db.query(`SELECT COUNT(*) as count FROM patients WHERE unique_id LIKE 'F${year}%'`, (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-        const nextNumber = (result[0].count + 1).toString().padStart(3, '0');
-        const uniqueId = `F${year}${nextNumber}`;
-        const sql = `INSERT INTO patients (unique_id, first_name, middle_name, last_name, age, contact_number, address, photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-        db.query(sql, [uniqueId, firstName, middleName, lastName, age, cellphone, address, photo], (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            logActivity('REGISTRATION', `Successfully registered new profile for ${firstName} ${lastName} under ID: ${uniqueId}`);
-            res.json({ success: true, uniqueId });
-        });
-    });
+
+    // 1. DUPLICATE CHECK: Prevent registering the same First Name + Last Name
+    db.query(
+        'SELECT id FROM patients WHERE first_name = ? AND last_name = ?',
+        [firstName, lastName],
+        (checkErr, checkResults) => {
+            if (checkErr) return res.status(500).json({ error: checkErr.message });
+
+            if (checkResults.length > 0) {
+                return res.status(409).json({ 
+                    success: false, 
+                    message: `Duplicate Record Blocked: A patient named ${firstName} ${lastName} is already registered.` 
+                });
+            }
+
+            // 2. PROCEED WITH REGISTRATION IF NO DUPLICATE FOUND
+            const year = new Date().getFullYear().toString().slice(-2);
+            db.query(`SELECT COUNT(*) as count FROM patients WHERE unique_id LIKE 'F${year}%'`, (err, result) => {
+                if (err) return res.status(500).json({ error: err.message });
+                
+                const nextNumber = (result[0].count + 1).toString().padStart(3, '0');
+                const uniqueId = `F${year}${nextNumber}`;
+                const sql = `INSERT INTO patients (unique_id, first_name, middle_name, last_name, age, contact_number, address, photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+                
+                db.query(sql, [uniqueId, firstName, middleName, lastName, age, cellphone, address, photo], (err) => {
+                    if (err) return res.status(500).json({ error: err.message });
+                    logActivity('REGISTRATION', `Successfully registered new profile for ${firstName} ${lastName} under ID: ${uniqueId}`);
+                    res.json({ success: true, uniqueId });
+                });
+            });
+        }
+    );
 });
 
 app.get('/api/patients', authenticateToken, (req, res) => {
