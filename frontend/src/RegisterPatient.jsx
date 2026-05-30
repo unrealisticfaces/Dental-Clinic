@@ -84,7 +84,12 @@ export default function RegisterPatient() {
         setPhoto(null);
       }
     } catch (error) {
-      toast.error("Registration failed. Check server connection.");
+      // NEW: Catch specific duplicate error from the server
+      if (error.response && error.response.status === 409) {
+        toast.error(error.response.data.message, { autoClose: 6000 });
+      } else {
+        toast.error("Registration failed. Check server connection.");
+      }
     } finally {
       setIsSubmitting(false);
     }

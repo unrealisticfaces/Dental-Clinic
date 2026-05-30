@@ -18,7 +18,10 @@ export default function SystemLogs() {
     const fetchLogs = async () => {
       setIsLoading(true);
       try {
-        const response = await axios.get(`http://localhost:5000/api/logs?query=${searchQuery}&page=${currentPage}&limit=${limit}`);
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`http://localhost:5000/api/logs?query=${searchQuery}&page=${currentPage}&limit=${limit}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         setLogs(response.data.data || []);
         setTotalPages(response.data.pagination?.totalPages || 1);
       } catch (error) {
@@ -44,6 +47,10 @@ export default function SystemLogs() {
         return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider">REGISTRATION</span>;
       case 'PAYMENT':
         return <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider">PAYMENT</span>;
+      case 'APPOINTMENT':
+        return <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider">APPOINTMENT</span>;
+      case 'CLINICAL':
+        return <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider">CLINICAL</span>;
       default:
         return <span className="bg-gray-100 text-gray-700 border border-gray-300 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider">SYSTEM</span>;
     }
@@ -86,7 +93,8 @@ export default function SystemLogs() {
             </div>
           )}
           <table className="w-full text-left text-sm text-gray-700">
-            <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-semibold tracking-wider sticky top-0 z-10 border-b border-gray-200">
+            {/* UPDATED: Dark Blue Header applied here! */}
+            <thead className="bg-slate-800 text-white uppercase text-[10px] font-semibold tracking-wider sticky top-0 z-10 border-b border-slate-900">
               <tr>
                 <th className="px-4 py-3 w-20">Log ID</th>
                 <th className="px-4 py-3 w-32">Event</th>

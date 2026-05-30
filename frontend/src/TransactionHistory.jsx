@@ -74,7 +74,8 @@ export default function TransactionHistory() {
               </div>
             )}
             <table className="w-full text-left text-sm text-gray-700">
-              <thead className="bg-gray-50 text-gray-500 uppercase text-[10px] font-semibold tracking-wider sticky top-0 z-10 border-b border-gray-200">
+              {/* UPDATED: Dark Blue Header */}
+              <thead className="bg-slate-800 text-white uppercase text-[10px] font-semibold tracking-wider sticky top-0 z-10 border-b border-slate-900">
                 <tr>
                   <th className="px-4 py-3">TXN ID</th>
                   <th className="px-4 py-3">Patient</th>
