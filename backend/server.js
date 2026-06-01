@@ -8,81 +8,54 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// In a real production environment, store this in a .env file!
 const JWT_SECRET = 'dental_clinic_super_secret_key_2024'; 
 
 const db = mysql.createPool({
     host: 'localhost',
     user: 'root',
-    password: 'root', // Change this if your local DB password is different
+    password: 'root',
     database: 'dental_clinic'
 });
 
-// --- HELPER: LOG ACTIVITY ---
 const logActivity = (event, description) => {
     const combinedLog = `${event}|${description}`;
     db.query('INSERT INTO activity_logs (action) VALUES (?)', [combinedLog]);
 };
 
-// --- SECURITY MIDDLEWARE ---
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; 
-
-    if (!token) return res.status(401).json({ message: 'Access Denied: No Token Provided' });
-
+    if (!token) return res.status(401).json({ message: 'Access Denied' });
     jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.status(403).json({ message: 'Access Denied: Invalid or Expired Token' });
+        if (err) return res.status(403).json({ message: 'Invalid Token' });
         req.user = user;
         next();
     });
 };
 
-// ==========================================
-// PUBLIC ROUTES (No Token Required)
-// ==========================================
-
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
-    
     db.query('SELECT * FROM users WHERE username = ?', [username], async (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
-        
-        if (results.length === 0) {
-            return res.status(401).json({ success: false, message: 'Invalid credentials' });
-        }
-
+        if (results.length === 0) return res.status(401).json({ success: false });
         const user = results[0];
         const isMatch = await bcrypt.compare(password, user.password);
-        
-        if (!isMatch) {
-            return res.status(401).json({ success: false, message: 'Invalid credentials' });
-        }
-
-        const token = jwt.sign(
-            { id: user.id, username: user.username }, 
-            JWT_SECRET, 
-            { expiresIn: '8h' }
-        );
-
-        logActivity('AUTH', `User session initiated for system administrator: ${username}`);
-        res.json({ success: true, user: user.username, token });
+        if (!isMatch) return res.status(401).json({ success: false });
+        const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '8h' });
+        logActivity('AUTH', `User logged in: ${username}`);
+        res.json({ success: true, user: user.username, role: user.role, token });
     });
 });
 
-// ==========================================
-// PROTECTED ROUTES (Token Required)
-// ==========================================
-
-// --- DASHBOARD & LOGS ---
 app.get('/api/dashboard/stats', authenticateToken, (req, res) => {
     const queries = {
         weeklyCustomers: 'SELECT COUNT(DISTINCT patient_id) as count FROM transactions',
         proceduresChart: 'SELECT p.name, COUNT(t.id) as value FROM transactions t JOIN procedures p ON t.procedure_id = p.id GROUP BY p.name, p.id',
         revenueChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, SUM(amount_paid) as total FROM transactions GROUP BY DATE(transaction_date), DATE_FORMAT(transaction_date, '%a') ORDER BY DATE(transaction_date) DESC LIMIT 7",
-        usersChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, COUNT(DISTINCT patient_id) as users FROM transactions GROUP BY DATE(transaction_date), DATE_FORMAT(transaction_date, '%a') ORDER BY DATE(transaction_date) DESC LIMIT 7"
+        usersChart: "SELECT DATE_FORMAT(transaction_date, '%a') as day, COUNT(DISTINCT patient_id) as users FROM transactions GROUP BY DATE(transaction_date), DATE_FORMAT(transaction_date, '%a') ORDER BY DATE(transaction_date) DESC LIMIT 7",
+        currRev: "SELECT SUM(amount_paid) as total FROM transactions WHERE transaction_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)",
+        prevRev: "SELECT SUM(amount_paid) as total FROM transactions WHERE transaction_date >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) AND transaction_date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)"
     };
-
     db.query(queries.weeklyCustomers, (err, custRes) => {
         if (err) return res.status(500).json({ error: err.message });
         db.query(queries.proceduresChart, (err, procRes) => {
@@ -91,12 +64,23 @@ app.get('/api/dashboard/stats', authenticateToken, (req, res) => {
                 if (err) return res.status(500).json({ error: err.message });
                 db.query(queries.usersChart, (err, userRes) => {
                     if (err) return res.status(500).json({ error: err.message });
-                    
-                    res.json({
-                        weeklyCustomers: custRes[0].count,
-                        procedures: procRes,
-                        revenue: revRes.reverse(),
-                        users: userRes.reverse()
+                    db.query(queries.currRev, (err, currRes) => {
+                        if (err) return res.status(500).json({ error: err.message });
+                        db.query(queries.prevRev, (err, prevRes) => {
+                            if (err) return res.status(500).json({ error: err.message });
+                            let current = currRes[0]?.total || 0;
+                            let previous = prevRes[0]?.total || 0;
+                            let trend = 0;
+                            if (previous > 0) trend = ((current - previous) / previous) * 100;
+                            else if (current > 0) trend = 100;
+                            res.json({
+                                weeklyCustomers: custRes[0].count,
+                                procedures: procRes,
+                                revenue: revRes.reverse(),
+                                users: userRes.reverse(),
+                                growthTrend: trend.toFixed(1)
+                            });
+                        });
                     });
                 });
             });
@@ -108,18 +92,38 @@ app.get('/api/logs', authenticateToken, (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 15;
     const offset = (page - 1) * limit;
-    const { query } = req.query;
-
-    let countSql = 'SELECT COUNT(*) as total FROM activity_logs';
-    let dataSql = 'SELECT id, action, timestamp FROM activity_logs';
+    const { query, type, dateFilter, customDate } = req.query;
+    let countSql = 'SELECT COUNT(*) as total FROM activity_logs WHERE 1=1';
+    let dataSql = 'SELECT id, action, timestamp FROM activity_logs WHERE 1=1';
     let params = [];
 
     if (query) {
-        const searchCondition = ' WHERE action LIKE ?';
-        countSql += searchCondition;
-        dataSql += searchCondition;
-        const searchParam = `%${query}%`;
-        params = [searchParam];
+        countSql += ' AND action LIKE ?';
+        dataSql += ' AND action LIKE ?';
+        params.push(`%${query}%`);
+    }
+
+    if (type && type !== 'All') {
+        countSql += ' AND action LIKE ?';
+        dataSql += ' AND action LIKE ?';
+        params.push(`${type}|%`);
+    }
+
+    if (dateFilter) {
+        if (dateFilter === 'Today') {
+            countSql += ' AND DATE(timestamp) = CURDATE()';
+            dataSql += ' AND DATE(timestamp) = CURDATE()';
+        } else if (dateFilter === 'Week') {
+            countSql += ' AND YEARWEEK(timestamp, 1) = YEARWEEK(CURDATE(), 1)';
+            dataSql += ' AND YEARWEEK(timestamp, 1) = YEARWEEK(CURDATE(), 1)';
+        } else if (dateFilter === 'Month') {
+            countSql += ' AND MONTH(timestamp) = MONTH(CURDATE()) AND YEAR(timestamp) = YEAR(CURDATE())';
+            dataSql += ' AND MONTH(timestamp) = MONTH(CURDATE()) AND YEAR(timestamp) = YEAR(CURDATE())';
+        } else if (dateFilter === 'Custom' && customDate) {
+            countSql += ' AND DATE(timestamp) = ?';
+            dataSql += ' AND DATE(timestamp) = ?';
+            params.push(customDate);
+        }
     }
 
     dataSql += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
@@ -135,41 +139,47 @@ app.get('/api/logs', authenticateToken, (req, res) => {
     });
 });
 
-// --- PATIENTS ---
 app.post('/api/patients', authenticateToken, (req, res) => {
-    const { firstName, middleName, lastName, age, cellphone, address, photo } = req.body;
+    const firstName = req.body.firstName || req.body.first_name;
+    const middleName = req.body.middleName || req.body.middle_name || '';
+    const lastName = req.body.lastName || req.body.last_name;
+    const age = req.body.age;
+    const phone = req.body.contact_number || req.body.cellphone || req.body.contactNumber || '';
+    const address = req.body.address;
+    const photo = req.body.photo || null;
 
-    // 1. DUPLICATE CHECK: Prevent registering the same First Name + Last Name
-    db.query(
-        'SELECT id FROM patients WHERE first_name = ? AND last_name = ?',
-        [firstName, lastName],
-        (checkErr, checkResults) => {
-            if (checkErr) return res.status(500).json({ error: checkErr.message });
-
-            if (checkResults.length > 0) {
-                return res.status(409).json({ 
-                    success: false, 
-                    message: `Duplicate Record Blocked: A patient named ${firstName} ${lastName} is already registered.` 
-                });
-            }
-
-            // 2. PROCEED WITH REGISTRATION IF NO DUPLICATE FOUND
-            const year = new Date().getFullYear().toString().slice(-2);
-            db.query(`SELECT COUNT(*) as count FROM patients WHERE unique_id LIKE 'F${year}%'`, (err, result) => {
-                if (err) return res.status(500).json({ error: err.message });
-                
-                const nextNumber = (result[0].count + 1).toString().padStart(3, '0');
-                const uniqueId = `F${year}${nextNumber}`;
-                const sql = `INSERT INTO patients (unique_id, first_name, middle_name, last_name, age, contact_number, address, photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-                
-                db.query(sql, [uniqueId, firstName, middleName, lastName, age, cellphone, address, photo], (err) => {
-                    if (err) return res.status(500).json({ error: err.message });
-                    logActivity('REGISTRATION', `Successfully registered new profile for ${firstName} ${lastName} under ID: ${uniqueId}`);
-                    res.json({ success: true, uniqueId });
-                });
+    db.query('SELECT id FROM patients WHERE first_name = ? AND last_name = ? AND (contact_number = ? OR age = ?)', [firstName, lastName, phone, age], (checkErr, checkResults) => {
+        if (checkErr) return res.status(500).json({ error: checkErr.message });
+        if (checkResults.length > 0) {
+            return res.status(409).json({ 
+                success: false, 
+                message: `Duplicated record blocked: Patient name ${firstName} ${lastName} is already registered.` 
             });
         }
-    );
+        const year = new Date().getFullYear().toString().slice(-2);
+        db.query(`SELECT COUNT(*) as count FROM patients WHERE unique_id LIKE 'F${year}%'`, (err, result) => {
+            if (err) return res.status(500).json({ error: err.message });
+            const nextNumber = (result[0].count + 1).toString().padStart(3, '0');
+            const uniqueId = `F${year}${nextNumber}`;
+            const sql = `INSERT INTO patients (unique_id, first_name, middle_name, last_name, age, contact_number, address, photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+            db.query(sql, [uniqueId, firstName, middleName, lastName, age, phone, address, photo], (err) => {
+                if (err) return res.status(500).json({ error: err.message });
+                logActivity('REGISTRATION', `Registered profile ID: ${uniqueId}`);
+                res.json({ success: true, uniqueId });
+            });
+        });
+    });
+});
+
+app.put('/api/patients/:id', authenticateToken, (req, res) => {
+    const { id } = req.params;
+    const { first_name, middle_name, last_name, contact_number, address } = req.body;
+    const sql = `UPDATE patients SET first_name = ?, middle_name = ?, last_name = ?, contact_number = ?, address = ? WHERE id = ?`;
+    db.query(sql, [first_name, middle_name, last_name, contact_number, address, id], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        logActivity('UPDATE', `Updated profile ID: ${id}`);
+        res.json({ success: true });
+    });
 });
 
 app.get('/api/patients', authenticateToken, (req, res) => {
@@ -177,21 +187,17 @@ app.get('/api/patients', authenticateToken, (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
     const { query } = req.query;
-    
     let countSql = 'SELECT COUNT(*) as total FROM patients';
     let dataSql = 'SELECT id, unique_id, first_name, middle_name, last_name, contact_number FROM patients';
     let params = [];
-    
     if (query) {
-        const searchCondition = ' WHERE unique_id LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR contact_number LIKE ?';
-        countSql += searchCondition;
-        dataSql += searchCondition;
+        const condition = ' WHERE unique_id LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR contact_number LIKE ?';
+        countSql += condition;
+        dataSql += condition;
         const searchParam = `%${query}%`;
         params = [searchParam, searchParam, searchParam, searchParam];
     }
-    
     dataSql += ' ORDER BY id DESC LIMIT ? OFFSET ?';
-    
     db.query(countSql, params, (err, countResult) => {
         if (err) return res.status(500).json({ error: err.message });
         const total = countResult[0].total;
@@ -206,14 +212,10 @@ app.get('/api/patients', authenticateToken, (req, res) => {
 app.get('/api/patients/search', authenticateToken, (req, res) => {
     const { q } = req.query;
     const searchQuery = `%${q}%`;
-    db.query(
-        'SELECT id, unique_id, first_name, last_name FROM patients WHERE unique_id LIKE ? OR first_name LIKE ? OR last_name LIKE ? LIMIT 10',
-        [searchQuery, searchQuery, searchQuery],
-        (err, results) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json(results);
-        }
-    );
+    db.query('SELECT id, unique_id, first_name, last_name FROM patients WHERE unique_id LIKE ? OR first_name LIKE ? OR last_name LIKE ? LIMIT 10', [searchQuery, searchQuery, searchQuery], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
 });
 
 app.get('/api/patients/:id', authenticateToken, (req, res) => {
@@ -232,7 +234,6 @@ app.get('/api/patients/:id/history', authenticateToken, (req, res) => {
     });
 });
 
-// --- CLINICAL DENTAL CHART ---
 app.get('/api/patients/:id/chart', authenticateToken, (req, res) => {
     const { id } = req.params;
     const sql = `SELECT * FROM dental_charts WHERE patient_id = ? ORDER BY created_at DESC`;
@@ -248,14 +249,13 @@ app.post('/api/patients/:id/chart', authenticateToken, (req, res) => {
     const sql = `INSERT INTO dental_charts (patient_id, tooth_number, condition_name, notes) VALUES (?, ?, ?, ?)`;
     db.query(sql, [id, tooth_number, condition_name, notes], (err, result) => {
         if (err) return res.status(500).json({ error: err.message });
-        logActivity('CLINICAL', `Updated dental chart for patient ID: ${id}, Tooth: ${tooth_number}`);
+        logActivity('CLINICAL', `Updated chart for patient ID: ${id}`);
         res.json({ success: true, chartId: result.insertId });
     });
 });
 
-// --- PROCEDURES & TRANSACTIONS ---
 app.get('/api/procedures', authenticateToken, (req, res) => {
-    db.query('SELECT id, name FROM procedures', (err, results) => {
+    db.query('SELECT id, name, cost FROM procedures', (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
     });
@@ -266,19 +266,16 @@ app.get('/api/transactions', authenticateToken, (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
     const { query } = req.query;
-
     let countSql = `SELECT COUNT(*) as total FROM transactions t JOIN patients p ON t.patient_id = p.id JOIN procedures pr ON t.procedure_id = pr.id`;
     let dataSql = `SELECT t.id, t.amount_paid, t.transaction_date, p.unique_id, p.first_name, p.last_name, pr.name as procedure_name FROM transactions t JOIN patients p ON t.patient_id = p.id JOIN procedures pr ON t.procedure_id = pr.id`;
     let params = [];
-
     if (query) {
-        const searchCondition = ' WHERE p.first_name LIKE ? OR p.last_name LIKE ? OR pr.name LIKE ? OR t.id LIKE ?';
-        countSql += searchCondition;
-        dataSql += searchCondition;
+        const condition = ' WHERE p.first_name LIKE ? OR p.last_name LIKE ? OR pr.name LIKE ? OR t.id LIKE ?';
+        countSql += condition;
+        dataSql += condition;
         const searchParam = `%${query}%`;
         params = [searchParam, searchParam, searchParam, searchParam];
     }
-
     dataSql += ' ORDER BY t.transaction_date DESC LIMIT ? OFFSET ?';
     db.query(countSql, params, (err, countResult) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -299,7 +296,7 @@ app.post('/api/transactions', authenticateToken, (req, res) => {
         const detail = results[0];
         db.query('INSERT INTO transactions (patient_id, procedure_id, amount_paid, transaction_date) VALUES (?, ?, ?, NOW())', [patient_id, procedure_id, amount_paid], (err, result) => {
             if (err) return res.status(500).json({ error: err.message });
-            if (detail) logActivity('PAYMENT', `Settled PHP ${amount_paid} for ${detail.procedure_name} (Patient: ${detail.first_name} ${detail.last_name} | ID: ${detail.unique_id})`);
+            if (detail) logActivity('PAYMENT', `Settled PHP ${amount_paid} for ${detail.procedure_name}`);
             res.json({ success: true, transactionId: result.insertId });
         });
     });
@@ -307,17 +304,24 @@ app.post('/api/transactions', authenticateToken, (req, res) => {
 
 app.get('/api/transactions/:id', authenticateToken, (req, res) => {
     const { id } = req.params;
-    const query = `SELECT t.id, t.amount_paid, t.transaction_date, p.unique_id, p.first_name, p.last_name, pr.name as procedure_name FROM transactions t JOIN patients p ON t.patient_id = p.id JOIN procedures pr ON t.procedure_id = pr.id WHERE t.id = ?`;
+    const query = `SELECT t.id, t.amount_paid, t.transaction_date, p.unique_id, p.first_name, p.last_name, p.address, p.contact_number, pr.name as procedure_name FROM transactions t JOIN patients p ON t.patient_id = p.id JOIN procedures pr ON t.procedure_id = pr.id WHERE t.id = ?`;
     db.query(query, [id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
-        if (results.length === 0) return res.status(404).json({ message: 'Transaction not found' });
+        if (results.length === 0) return res.status(404).json({ message: 'Not found' });
         res.json(results[0]);
     });
 });
 
-// --- APPOINTMENTS ---
+app.get('/api/reports/shift', authenticateToken, (req, res) => {
+    const sql = `SELECT SUM(amount_paid) as total_cash FROM transactions WHERE DATE(transaction_date) = CURDATE()`;
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ total_cash: results[0].total_cash || 0 });
+    });
+});
+
 app.get('/api/appointments', authenticateToken, (req, res) => {
-    const sql = `SELECT * FROM appointments WHERE appointment_date >= CURDATE() ORDER BY appointment_date ASC, appointment_time ASC`;
+    const sql = `SELECT a.*, p.first_name, p.last_name, p.contact_number as patient_phone FROM appointments a JOIN patients p ON a.patient_id = p.id WHERE a.appointment_date >= CURDATE() ORDER BY a.appointment_date ASC, a.appointment_time ASC`;
     db.query(sql, (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
@@ -325,11 +329,11 @@ app.get('/api/appointments', authenticateToken, (req, res) => {
 });
 
 app.post('/api/appointments', authenticateToken, (req, res) => {
-    const { patient_name, contact_number, appointment_date, appointment_time, reason } = req.body;
-    const sql = `INSERT INTO appointments (patient_name, contact_number, appointment_date, appointment_time, reason) VALUES (?, ?, ?, ?, ?)`;
-    db.query(sql, [patient_name, contact_number, appointment_date, appointment_time, reason], (err, result) => {
+    const { patient_id, appointment_date, appointment_time, reason } = req.body;
+    const sql = `INSERT INTO appointments (patient_id, appointment_date, appointment_time, reason) VALUES (?, ?, ?, ?)`;
+    db.query(sql, [patient_id, appointment_date, appointment_time, reason], (err, result) => {
         if (err) return res.status(500).json({ error: err.message });
-        logActivity('APPOINTMENT', `Scheduled new appointment for ${patient_name} on ${appointment_date}`);
+        logActivity('APPOINTMENT', `Scheduled appointment for Patient ID ${patient_id}`);
         res.json({ success: true, appointmentId: result.insertId });
     });
 });
@@ -343,4 +347,4 @@ app.put('/api/appointments/:id/status', authenticateToken, (req, res) => {
 });
 
 const PORT = 5000;
-app.listen(PORT, () => console.log(`Backend server secured & running on port ${PORT}`));
+app.listen(PORT, () => {});
