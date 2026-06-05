@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { Search, User, ChevronRight, ChevronLeft, Activity, MapPin, Phone, Hash } from 'lucide-react';
+import { Search, User, ChevronRight, ChevronLeft, Activity, MapPin, Phone, Hash, Edit, Save, X } from 'lucide-react';
 
 export default function PatientDirectory() {
   const [patients, setPatients] = useState([]);
@@ -10,6 +10,17 @@ export default function PatientDirectory() {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [editForm, setEditForm] = useState({
+    first_name: '',
+    middle_name: '',
+    last_name: '',
+    contact_number: '',
+    address: ''
+  });
+
   const limit = 10;
   const navigate = useNavigate();
 
@@ -17,17 +28,17 @@ export default function PatientDirectory() {
     setCurrentPage(1);
   }, [searchQuery]);
 
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const response = await axios.get(`http://localhost:5000/api/patients?query=${searchQuery}&page=${currentPage}&limit=${limit}`);
-        setPatients(response.data.data || []);
-        setTotalPages(response.data.pagination?.totalPages || 1);
-      } catch (error) {
-        console.error(error);
-      }
-    };
+  const fetchPatients = async () => {
+    try {
+      const response = await axios.get(`http://localhost:5000/api/patients?query=${searchQuery}&page=${currentPage}&limit=${limit}`);
+      setPatients(response.data.data || []);
+      setTotalPages(response.data.pagination?.totalPages || 1);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
+  useEffect(() => {
     if (searchQuery === '') {
       fetchPatients();
     } else {
@@ -50,8 +61,39 @@ export default function PatientDirectory() {
     }
   };
 
+  const openEditModal = () => {
+    if (selectedPatient) {
+      setEditForm({
+        first_name: selectedPatient.first_name || '',
+        middle_name: selectedPatient.middle_name || '',
+        last_name: selectedPatient.last_name || '',
+        contact_number: selectedPatient.contact_number || '',
+        address: selectedPatient.address || ''
+      });
+      setIsEditModalOpen(true);
+    }
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`http://localhost:5000/api/patients/${selectedPatient.id}`, editForm, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setIsEditModalOpen(false);
+      handlePreview(selectedPatient); 
+      fetchPatients(); 
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <div className="max-w-6xl mx-auto pb-10 h-full flex flex-col">
+    <div className="max-w-6xl mx-auto pb-10 h-full flex flex-col relative">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
         <div>
           <h2 className="text-xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
@@ -79,7 +121,6 @@ export default function PatientDirectory() {
         <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-sm text-gray-700 whitespace-nowrap">
-              {/* UPDATED: Dark Blue Header */}
               <thead className="bg-slate-800 text-white uppercase text-[10px] font-semibold tracking-wider sticky top-0 z-10 border-b border-slate-900">
                 <tr>
                   <th className="px-4 py-3">Account Number</th>
@@ -157,7 +198,7 @@ export default function PatientDirectory() {
                 <h3 className="text-lg font-bold text-gray-900 mb-1 tracking-tight break-words text-center w-full uppercase">
                   {selectedPatient.first_name} {selectedPatient.last_name}
                 </h3>
-                <p className="text-blue-600 font-mono text-[10px] font-bold tracking-wider uppercase mb-4 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                <p className="text-blue-600 font-mono text-sm font-bold tracking-wider uppercase mb-4 bg-blue-50 px-3 py-1 rounded border border-blue-100">
                   {selectedPatient.unique_id}
                 </p>
 
@@ -194,12 +235,20 @@ export default function PatientDirectory() {
                 </div>
               </div>
 
-              <button 
-                onClick={() => navigate(`/patients/view/${selectedPatient.id}`)}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2.5 rounded-md transition-colors shadow-sm flex items-center justify-center gap-1 mt-auto"
-              >
-                Open Full Profile <ChevronRight size={14} />
-              </button>
+              <div className="w-full flex gap-2 mt-auto">
+                <button 
+                  onClick={openEditModal}
+                  className="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-[10px] py-2.5 rounded-md transition-colors shadow-sm flex items-center justify-center gap-1 uppercase tracking-wider"
+                >
+                  <Edit size={14} /> Update
+                </button>
+                <button 
+                  onClick={() => navigate(`/patients/view/${selectedPatient.id}`)}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] py-2.5 rounded-md transition-colors shadow-sm flex items-center justify-center gap-1 uppercase tracking-wider"
+                >
+                  Profile <ChevronRight size={14} />
+                </button>
+              </div>
             </div>
           ) : (
             <div className="text-center opacity-60">
@@ -209,6 +258,51 @@ export default function PatientDirectory() {
           )}
         </div>
       </div>
+
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="bg-slate-800 p-4 flex justify-between items-center">
+              <h3 className="text-white font-bold text-sm uppercase tracking-wider flex items-center gap-2">
+                <Edit size={16} /> Update Details
+              </h3>
+              <button onClick={() => setIsEditModalOpen(false)} className="text-slate-300 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleEditSubmit} className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">First Name</label>
+                  <input type="text" required value={editForm.first_name} onChange={e => setEditForm({...editForm, first_name: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-xs font-semibold text-gray-800 uppercase focus:border-blue-500 outline-none" />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Middle Name</label>
+                  <input type="text" value={editForm.middle_name} onChange={e => setEditForm({...editForm, middle_name: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-xs font-semibold text-gray-800 uppercase focus:border-blue-500 outline-none" />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Last Name</label>
+                  <input type="text" required value={editForm.last_name} onChange={e => setEditForm({...editForm, last_name: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-xs font-semibold text-gray-800 uppercase focus:border-blue-500 outline-none" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Contact Number</label>
+                  <input type="text" required value={editForm.contact_number} onChange={e => setEditForm({...editForm, contact_number: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-xs font-bold font-mono text-gray-800 uppercase focus:border-blue-500 outline-none" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Address</label>
+                  <textarea required rows="2" value={editForm.address} onChange={e => setEditForm({...editForm, address: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-xs font-semibold text-gray-800 uppercase focus:border-blue-500 outline-none resize-none"></textarea>
+                </div>
+              </div>
+              <div className="pt-2">
+                <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded transition-colors text-xs uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-70">
+                  <Save size={16} /> {isSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

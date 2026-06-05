@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import Webcam from 'react-webcam';
-import { Camera, Save, RefreshCw, UserCheck, Upload } from 'lucide-react';
+import { Camera, Save, RefreshCw, UserCheck, Upload, ChevronDown } from 'lucide-react';
 
 export default function RegisterPatient() {
   const webcamRef = useRef(null);
@@ -14,7 +14,10 @@ export default function RegisterPatient() {
     firstName: '', 
     middleName: '', 
     lastName: '', 
-    birthDate: '', 
+    birthMonth: '',
+    birthDay: '',
+    birthYear: '',
+    gender: '',
     cellphone: '', 
     address: ''
   });
@@ -64,10 +67,17 @@ export default function RegisterPatient() {
       return;
     }
 
+    if (!formData.birthMonth || !formData.birthDay || !formData.birthYear) {
+      toast.warn("Please select a complete birth date.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const computedAge = calculateAge(formData.birthDate);
+      const formattedDate = `${formData.birthYear}-${formData.birthMonth}-${formData.birthDay}`;
+      const computedAge = calculateAge(formattedDate);
+      
       const payload = { 
         ...formData, 
         age: computedAge, 
@@ -80,11 +90,14 @@ export default function RegisterPatient() {
       if (response.data.success) {
         toast.success(`Registration complete! ID generated: ${response.data.uniqueId}`, { autoClose: 5000 });
         
-        setFormData({ firstName: '', middleName: '', lastName: '', birthDate: '', cellphone: '', address: '' });
+        setFormData({ 
+          firstName: '', middleName: '', lastName: '', 
+          birthMonth: '', birthDay: '', birthYear: '', 
+          gender: '', cellphone: '', address: '' 
+        });
         setPhoto(null);
       }
     } catch (error) {
-      // NEW: Catch specific duplicate error from the server
       if (error.response && error.response.status === 409) {
         toast.error(error.response.data.message, { autoClose: 6000 });
       } else {
@@ -94,6 +107,26 @@ export default function RegisterPatient() {
       setIsSubmitting(false);
     }
   };
+
+  // Date Dropdown Generators
+  const months = [
+    { value: '01', label: 'Jan' }, { value: '02', label: 'Feb' }, { value: '03', label: 'Mar' },
+    { value: '04', label: 'Apr' }, { value: '05', label: 'May' }, { value: '06', label: 'Jun' },
+    { value: '07', label: 'Jul' }, { value: '08', label: 'Aug' }, { value: '09', label: 'Sep' },
+    { value: '10', label: 'Oct' }, { value: '11', label: 'Nov' }, { value: '12', label: 'Dec' }
+  ];
+  
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 120 }, (_, i) => currentYear - i);
+  
+  const getDaysInMonth = (m, y) => {
+    if (!m) return 31;
+    const month = parseInt(m);
+    const year = parseInt(y) || 2000; 
+    return new Date(year, month, 0).getDate();
+  };
+  
+  const days = Array.from({ length: getDaysInMonth(formData.birthMonth, formData.birthYear) }, (_, i) => String(i + 1).padStart(2, '0'));
 
   return (
     <div className="max-w-5xl mx-auto pb-10">
@@ -182,12 +215,64 @@ export default function RegisterPatient() {
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-gray-600 mb-1 block">Birth Date <span className="text-red-500">*</span></label>
-              <input type="date" name="birthDate" required value={formData.birthDate} max={new Date().toISOString().split("T")[0]} onChange={handleChange}
-                className="w-full px-3 py-2 bg-white rounded-md text-gray-900 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm" />
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Gender <span className="text-red-500">*</span></label>
+              <div className="relative">
+                <select name="gender" required value={formData.gender} onChange={handleChange}
+                  className="w-full px-3 py-2 bg-white rounded-md text-gray-900 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm appearance-none"
+                >
+                  <option value="" disabled>Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-400">
+                  <ChevronDown size={14} />
+                </div>
+              </div>
             </div>
 
-            <div className="md:col-span-2">
+            <div className="md:col-span-1">
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Birth Date <span className="text-red-500">*</span></label>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="relative">
+                  <select name="birthMonth" required value={formData.birthMonth} onChange={handleChange}
+                    className="w-full pl-2 pr-6 py-2 bg-white rounded-md text-gray-900 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm appearance-none"
+                  >
+                    <option value="" disabled>MM</option>
+                    {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-1 pointer-events-none text-gray-400">
+                    <ChevronDown size={12} />
+                  </div>
+                </div>
+                
+                <div className="relative">
+                  <select name="birthDay" required value={formData.birthDay} onChange={handleChange}
+                    className="w-full pl-2 pr-6 py-2 bg-white rounded-md text-gray-900 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm appearance-none"
+                  >
+                    <option value="" disabled>DD</option>
+                    {days.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-1 pointer-events-none text-gray-400">
+                    <ChevronDown size={12} />
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <select name="birthYear" required value={formData.birthYear} onChange={handleChange}
+                    className="w-full pl-2 pr-6 py-2 bg-white rounded-md text-gray-900 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-sm appearance-none"
+                  >
+                    <option value="" disabled>YYYY</option>
+                    {years.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-1 pointer-events-none text-gray-400">
+                    <ChevronDown size={12} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="md:col-span-1">
               <label className="text-xs font-semibold text-gray-600 mb-1 block">Cellphone Number <span className="text-red-500">*</span></label>
               <div className="flex bg-white border border-gray-300 rounded-md focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all overflow-hidden">
                 <span className="flex items-center px-3 bg-gray-50 border-r border-gray-300 text-gray-600 text-sm font-semibold">

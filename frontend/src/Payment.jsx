@@ -1,46 +1,37 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { CreditCard, Search, User, CheckCircle2, ChevronRight, Calculator, FileText, Activity, AlertCircle } from 'lucide-react';
+import { CreditCard, Search, User, CheckCircle2, ChevronRight, Calculator, FileText, Activity, AlertCircle, Printer, Stethoscope } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function Payment() {
   const navigate = useNavigate();
-  const [procedures, setProcedures] = useState([
-    { id: '1', name: 'Dental Consultation' },
-    { id: '2', name: 'Teeth Cleaning (Prophylaxis)' },
-    { id: '3', name: 'Tooth Extraction' },
-    { id: '4', name: 'Dental Fillings' },
-    { id: '5', name: 'Root Canal Therapy' },
-    { id: '6', name: 'Teeth Whitening' },
-    { id: '7', name: 'Orthodontic Braces Adjustment' },
-    { id: '8', name: 'Dental Crowns / Bridges' },
-    { id: '9', name: 'Dentures Fitting' },
-    { id: '10', name: 'Dental X-Ray' },
-    { id: '11', name: 'Wisdom Tooth Removal' },
-    { id: '12', name: 'Dental Implants' },
-    { id: '13', name: 'Fluoride Treatment' },
-    { id: '14', name: 'Porcelain Veneers' },
-    { id: '15', name: 'Periodontal Treatment' },
-    { id: '16', name: 'TMJ Therapy' },
-    { id: '17', name: 'Sealants' },
-    { id: '18', name: 'Inlays and Onlays' }
-  ]);
+  const [procedures, setProcedures] = useState([]);
+  const [dentists, setDentists] = useState([]);
   const [patientSearch, setPatientSearch] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [selectedProcedure, setSelectedProcedure] = useState('');
+  const [selectedDentist, setSelectedDentist] = useState('');
   const [amount, setAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
   const [successData, setSuccessData] = useState(null);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/procedures')
+    const token = localStorage.getItem('token');
+    
+    axios.get('http://localhost:5000/api/procedures', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => {
-        if (res.data && res.data.length > 0) {
-          setProcedures(res.data);
-        }
+        if (res.data && res.data.length > 0) setProcedures(res.data);
+      })
+      .catch(err => console.error(err));
+
+    axios.get('http://localhost:5000/api/dentists', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (res.data && res.data.length > 0) setDentists(res.data);
       })
       .catch(err => console.error(err));
   }, []);
@@ -53,7 +44,10 @@ export default function Payment() {
     const searchPatients = async () => {
       setIsSearching(true);
       try {
-        const res = await axios.get(`http://localhost:5000/api/patients/search?q=${patientSearch}`);
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`http://localhost:5000/api/patients/search?q=${patientSearch}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         setSearchResults(res.data);
       } catch (err) {
         console.error(err);
@@ -68,23 +62,32 @@ export default function Payment() {
   const handleProcessPayment = async () => {
     setError('');
     if (!selectedPatient) return setError('Please select a patient.');
+    if (!selectedDentist) return setError('Please select an attending dentist.');
     if (!selectedProcedure) return setError('Please select a procedure.');
     if (!amount || isNaN(amount) || Number(amount) <= 0) return setError('Please enter a valid amount.');
 
     setIsProcessing(true);
     try {
+      const token = localStorage.getItem('token');
       const response = await axios.post('http://localhost:5000/api/transactions', {
         patient_id: selectedPatient.id,
         procedure_id: selectedProcedure,
+        dentist_id: selectedDentist,
         amount_paid: Number(amount)
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       
       if (response.data.success) {
         const procName = procedures.find(p => p.id.toString() === selectedProcedure.toString())?.name;
+        const docName = dentists.find(d => d.id.toString() === selectedDentist.toString())?.name;
+        
         setSuccessData({
           transactionId: response.data.transactionId,
           patientName: `${selectedPatient.first_name} ${selectedPatient.last_name}`,
-          procedureName: procName,
+          patientId: selectedPatient.unique_id,
+          procedureName: procName || 'Dental Procedure',
+          dentistName: docName || 'Attending Dentist',
           amountPaid: amount,
           date: new Date()
         });
@@ -93,6 +96,86 @@ export default function Payment() {
       setError('Failed to process payment.');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const generateReceipt = () => {
+    if (!successData) return;
+    try {
+      const doc = new jsPDF();
+      const txn = successData;
+      
+      const safeProcedureName = txn.procedureName ? txn.procedureName.toUpperCase() : 'GENERAL PROCEDURE';
+
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text("DENTAL CLINIC INC.", 105, 22, { align: "center" });
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text("123 Clinic Address, Cebu City, Philippines", 105, 28, { align: "center" });
+      doc.text("Phone: +63 912 345 6789 | Email: billing@dentalclinic.com", 105, 33, { align: "center" });
+
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.5);
+      doc.line(14, 38, 196, 38);
+
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text("OFFICIAL RECEIPT", 105, 48, { align: "center" });
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      
+      doc.text(`Receipt No: TXN-${String(txn.transactionId).padStart(5, '0')}`, 14, 58);
+      doc.text(`Date: ${new Date(txn.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 14, 63);
+
+      doc.text(`Patient Name: ${txn.patientName}`, 120, 58);
+      doc.text(`Patient ID: ${txn.patientId}`, 120, 63);
+      doc.text(`Attending: ${txn.dentistName}`, 120, 68);
+
+      autoTable(doc, {
+        startY: 77,
+        head: [['Procedure / Description', 'Qty', 'Amount (PHP)']],
+        body: [
+          [safeProcedureName, '1', Number(txn.amountPaid).toLocaleString('en-US', { minimumFractionDigits: 2 })]
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' }, 
+        bodyStyles: { textColor: [15, 23, 42], fontSize: 10, cellPadding: 5 },
+        columnStyles: {
+          0: { cellWidth: 'auto', fontStyle: 'bold' },
+          1: { cellWidth: 20, halign: 'center' },
+          2: { cellWidth: 40, halign: 'right', fontStyle: 'bold' },
+        }
+      });
+
+      const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : 105;
+      
+      doc.setFillColor(248, 250, 252);
+      doc.rect(120, finalY + 5, 76, 12, 'F');
+      
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text("TOTAL PAID:", 125, finalY + 13);
+      doc.text(`PHP ${Number(txn.amountPaid).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 191, finalY + 13, { align: "right" });
+
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(9);
+      doc.setTextColor(148, 163, 184);
+      doc.text("Thank you for trusting us with your smile!", 105, finalY + 35, { align: "center" });
+      doc.text("This is a system-generated official receipt and does not require a signature.", 105, finalY + 40, { align: "center" });
+
+      doc.save(`Receipt_TXN-${txn.transactionId}_${txn.patientName.replace(/\s+/g, '_')}.pdf`);
+      
+    } catch (err) {
+      console.error("PDF Generation Error:", err);
+      alert("Failed to generate receipt: " + err.message);
     }
   };
 
@@ -116,7 +199,6 @@ export default function Payment() {
           <h2 className="text-2xl font-black text-gray-900 mb-2 uppercase tracking-widest">Payment Successful</h2>
           <p className="text-gray-500 mb-8 text-sm font-medium">The transaction has been successfully recorded.</p>
 
-          {/* Transaction Summary Preview */}
           <div className="w-full bg-white border border-gray-200 rounded-lg p-6 mb-8 shadow-sm text-left">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 border-b border-gray-100 pb-2">
               Transaction Summary
@@ -126,6 +208,10 @@ export default function Payment() {
               <div className="flex justify-between items-start gap-4">
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-0.5">Patient</span>
                 <span className="text-sm font-bold text-gray-900 uppercase text-right">{successData.patientName}</span>
+              </div>
+              <div className="flex justify-between items-start gap-4">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-0.5">Attending</span>
+                <span className="text-sm font-bold text-gray-900 uppercase text-right">{successData.dentistName}</span>
               </div>
               <div className="flex justify-between items-start gap-4">
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-0.5">Procedure</span>
@@ -140,18 +226,27 @@ export default function Payment() {
             </div>
           </div>
 
-          <button 
-            onClick={() => {
-              setSuccessData(null);
-              setSelectedPatient(null);
-              setSelectedProcedure('');
-              setAmount('');
-              setPatientSearch('');
-            }}
-            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-md transition-all shadow-sm uppercase tracking-widest text-sm"
-          >
-            Process Another Payment
-          </button>
+          <div className="flex gap-3 w-full">
+            <button 
+              onClick={generateReceipt}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-md transition-all shadow-sm uppercase tracking-widest text-sm flex items-center justify-center gap-2"
+            >
+              <Printer size={18} /> Print Receipt
+            </button>
+            <button 
+              onClick={() => {
+                setSuccessData(null);
+                setSelectedPatient(null);
+                setSelectedProcedure('');
+                setSelectedDentist('');
+                setAmount('');
+                setPatientSearch('');
+              }}
+              className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-md transition-all shadow-sm uppercase tracking-widest text-sm"
+            >
+              New Payment
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -257,6 +352,27 @@ export default function Payment() {
               <div className="space-y-3 flex-1">
                 <div>
                   <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                    Attending Dentist
+                  </label>
+                  <div className="relative">
+                    <select 
+                      value={selectedDentist}
+                      onChange={(e) => setSelectedDentist(e.target.value)}
+                      className="w-full appearance-none bg-white border border-gray-300 text-xs text-gray-900 font-semibold p-2 rounded-md focus:border-blue-500 outline-none transition-all cursor-pointer uppercase"
+                    >
+                      <option value="" disabled>-- Select a Dentist --</option>
+                      {dentists.map(dent => (
+                        <option key={dent.id} value={dent.id}>{dent.name}</option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-400">
+                      <ChevronRight className="rotate-90" size={12} />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
                     Procedure Rendered
                   </label>
                   <div className="relative">
@@ -305,7 +421,7 @@ export default function Payment() {
 
                 <button 
                   onClick={handleProcessPayment}
-                  disabled={!selectedPatient || !selectedProcedure || !amount}
+                  disabled={!selectedPatient || !selectedProcedure || !selectedDentist || !amount}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider py-2.5 rounded-md transition-all shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Calculator size={14} /> Complete Transaction

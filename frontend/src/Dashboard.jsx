@@ -11,11 +11,11 @@ export default function Dashboard() {
     weeklyCustomers: 0,
     procedures: [],
     revenue: [],
-    users: []
+    users: [],
+    growthTrend: 0
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  // Modern, cohesive color palette for the Pie Chart
   const COLORS = ['#6366f1', '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', '#10b981'];
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export default function Dashboard() {
         });
         setStats(response.data);
       } catch (error) {
-        console.error("Failed to fetch dashboard stats", error);
+        console.error(error);
       } finally {
         setIsLoading(false);
       }
@@ -43,10 +43,14 @@ export default function Dashboard() {
     );
   }
 
-  // Calculate stats safely
   const totalWeeklyRevenue = stats.revenue?.reduce((sum, item) => sum + Number(item.total), 0) || 0;
   const totalCustomers = stats.weeklyCustomers || 0;
   const topProcedure = stats.procedures?.length > 0 ? stats.procedures.sort((a,b) => b.value - a.value)[0].name : 'N/A';
+  
+  const trend = Number(stats.growthTrend || 0);
+  const isPositive = trend >= 0;
+  const trendColor = isPositive ? 'text-emerald-500' : 'text-red-500';
+  const trendSign = isPositive ? '+' : '';
 
   return (
     <div className="max-w-7xl mx-auto pb-10 font-sans">
@@ -55,7 +59,6 @@ export default function Dashboard() {
         <p className="text-slate-500 mt-1 text-sm">Here is a snapshot of your clinic's performance.</p>
       </div>
 
-      {/* Top Stat Cards - Redesigned for a softer, modern look */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
           <div className="bg-blue-50/50 p-3.5 rounded-xl text-blue-500">
@@ -99,17 +102,15 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Growth Trend</p>
-            <h3 className="text-lg font-bold text-emerald-500 tracking-tight flex items-center gap-1.5">
-              +12.5% <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mt-0.5">vs last wk</span>
+            <h3 className={`text-lg font-bold ${trendColor} tracking-tight flex items-center gap-1.5`}>
+              {trendSign}{trend}% <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mt-0.5">vs last wk</span>
             </h3>
           </div>
         </div>
       </div>
 
-      {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Revenue Bar Chart */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-sm font-bold text-slate-700">Revenue Trend</h3>
@@ -134,7 +135,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Procedures Donut Chart */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <h3 className="text-sm font-bold text-slate-700 mb-6">Procedure Breakdown</h3>
           <div className="h-64 w-full flex items-center justify-center">
@@ -164,7 +164,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Patient Traffic Area Chart */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm lg:col-span-2">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-sm font-bold text-slate-700">Patient Traffic Overview</h3>

@@ -15,21 +15,21 @@ export default function PatientDetails() {
   const [dentalChart, setDentalChart] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Dental Chart State
   const [selectedTooth, setSelectedTooth] = useState(null);
   const [isSubmittingChart, setIsSubmittingChart] = useState(false);
   const [chartForm, setChartForm] = useState({ condition_name: 'Normal', notes: '' });
 
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
 
   const fetchDetails = async () => {
     try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
       const [profileRes, historyRes, chartRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/patients/${id}`),
-        axios.get(`http://localhost:5000/api/patients/${id}/history`),
-        axios.get(`http://localhost:5000/api/patients/${id}/chart`)
+        axios.get(`http://localhost:5000/api/patients/${id}`, { headers }),
+        axios.get(`http://localhost:5000/api/patients/${id}/history`, { headers }),
+        axios.get(`http://localhost:5000/api/patients/${id}/chart`, { headers })
       ]);
       setPatient(profileRes.data);
       setHistory(historyRes.data);
@@ -43,22 +43,24 @@ export default function PatientDetails() {
 
   useEffect(() => {
     fetchDetails();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const handleChartSubmit = async (e) => {
     e.preventDefault();
     setIsSubmittingChart(true);
     try {
+      const token = localStorage.getItem('token');
       await axios.post(`http://localhost:5000/api/patients/${id}/chart`, {
         tooth_number: selectedTooth.toString(),
         condition_name: chartForm.condition_name,
         notes: chartForm.notes
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       toast.success(`Tooth #${selectedTooth} record updated!`);
       setSelectedTooth(null);
       setChartForm({ condition_name: 'Normal', notes: '' });
-      fetchDetails(); // Refresh chart data
+      fetchDetails();
     } catch (error) {
       toast.error('Failed to update dental chart');
     } finally {
@@ -69,7 +71,7 @@ export default function PatientDetails() {
   const getToothStatus = (number) => {
     const records = dentalChart.filter(c => c.tooth_number === number.toString());
     if (records.length === 0) return 'Normal';
-    return records[0].condition_name; // Returns the most recent condition
+    return records[0].condition_name;
   };
 
   const getToothColor = (condition) => {
@@ -95,7 +97,6 @@ export default function PatientDetails() {
     return <div className="text-gray-800 text-lg text-center pt-20 font-bold">Patient not found.</div>;
   }
 
-  // Arrays for Upper and Lower Teeth (Universal Numbering System 1-32)
   const upperTeeth = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
   const lowerTeeth = [32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17];
 
@@ -103,16 +104,19 @@ export default function PatientDetails() {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const currentHistory = history.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
+  const selectedToothHistory = selectedTooth 
+    ? dentalChart.filter(c => c.tooth_number === selectedTooth.toString()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    : [];
+
   return (
     <div className="max-w-4xl mx-auto pb-10">
       <button 
-        onClick={() => navigate('/patients/search')}
+        onClick={() => navigate('/patients')}
         className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 mb-4 transition-colors text-sm font-medium"
       >
         <ArrowLeft size={16} /> Back to Directory
       </button>
 
-      {/* Patient Header Card */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6 flex flex-col">
         <div className="h-24 bg-gray-100 border-b border-gray-200 relative shrink-0">
           <div className="absolute -bottom-8 left-6">
@@ -164,7 +168,6 @@ export default function PatientDetails() {
         </div>
       </div>
 
-      {/* NEW: Interactive Dental Chart Section */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
         <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-6">
           <div className="flex items-center gap-2">
@@ -174,10 +177,7 @@ export default function PatientDetails() {
           <span className="text-xs text-gray-500 font-medium">Click a tooth to update record</span>
         </div>
 
-        {/* Teeth Visual Grid */}
         <div className="flex flex-col items-center gap-8 mb-4 overflow-x-auto pb-4">
-          
-          {/* Upper Teeth Row */}
           <div className="flex gap-1.5">
             {upperTeeth.map(num => {
               const status = getToothStatus(num);
@@ -194,7 +194,6 @@ export default function PatientDetails() {
             })}
           </div>
 
-          {/* Lower Teeth Row */}
           <div className="flex gap-1.5">
             {lowerTeeth.map(num => {
               const status = getToothStatus(num);
@@ -212,7 +211,6 @@ export default function PatientDetails() {
           </div>
         </div>
 
-        {/* Legend */}
         <div className="flex flex-wrap justify-center gap-4 mt-6 pt-4 border-t border-gray-100 text-xs font-semibold text-gray-600 uppercase">
           <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-gray-200 bg-white"></div> Normal</span>
           <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-red-400 bg-red-100"></div> Cavity</span>
@@ -223,7 +221,6 @@ export default function PatientDetails() {
         </div>
       </div>
 
-      {/* Transaction History Section */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-4 border-b border-gray-100 pb-4">
           <History className="text-blue-600" size={20} />
@@ -253,7 +250,6 @@ export default function PatientDetails() {
                 </div>
               ))}
               
-              {/* Pagination Controls */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
                   <p className="text-xs text-gray-500 font-medium">
@@ -291,7 +287,6 @@ export default function PatientDetails() {
         </div>
       </div>
 
-      {/* Tooth Record Modal */}
       {selectedTooth && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden">
@@ -302,46 +297,69 @@ export default function PatientDetails() {
               </button>
             </div>
             
-            <form onSubmit={handleChartSubmit} className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-1 block">Condition / Procedure</label>
-                <select 
-                  value={chartForm.condition_name} 
-                  onChange={(e) => setChartForm({...chartForm, condition_name: e.target.value})}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none font-medium text-slate-800"
-                >
-                  <option value="Normal">Normal (Clear Status)</option>
-                  <option value="Cavity">Cavity Detected</option>
-                  <option value="Filling">Restoration / Filling</option>
-                  <option value="Crown">Dental Crown</option>
-                  <option value="Missing">Missing Tooth</option>
-                  <option value="Extracted">Extracted</option>
-                </select>
+            <form onSubmit={handleChartSubmit} className="p-5">
+              <div className="mb-5 bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto custom-scrollbar">
+                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Past Records</h4>
+                {selectedToothHistory.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedToothHistory.map(record => (
+                      <div key={record.id} className="relative pl-3 border-l-2 border-blue-200">
+                        <div className="absolute -left-[5px] top-1 w-2 h-2 rounded-full bg-blue-500"></div>
+                        <div className="flex justify-between items-start mb-0.5">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${getToothColor(record.condition_name)}`}>
+                            {record.condition_name}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {new Date(record.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        {record.notes && <p className="text-xs text-slate-600 mt-1">{record.notes}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic text-center py-2">No previous records for this tooth.</p>
+                )}
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-1 block">Clinical Notes</label>
-                <textarea 
-                  value={chartForm.notes} 
-                  onChange={(e) => setChartForm({...chartForm, notes: e.target.value})}
-                  rows="3" 
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none" 
-                  placeholder="Add specific details, material used, or future observations..."
-                ></textarea>
-              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-1 block">Update Condition</label>
+                  <select 
+                    value={chartForm.condition_name} 
+                    onChange={(e) => setChartForm({...chartForm, condition_name: e.target.value})}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none font-medium text-slate-800"
+                  >
+                    <option value="Normal">Normal (Clear Status)</option>
+                    <option value="Cavity">Cavity Detected</option>
+                    <option value="Filling">Restoration / Filling</option>
+                    <option value="Crown">Dental Crown</option>
+                    <option value="Missing">Missing Tooth</option>
+                    <option value="Extracted">Extracted</option>
+                  </select>
+                </div>
 
-              {/* Mini history log for this specific tooth could go here in a future update */}
+                <div>
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-1 block">Clinical Notes</label>
+                  <textarea 
+                    value={chartForm.notes} 
+                    onChange={(e) => setChartForm({...chartForm, notes: e.target.value})}
+                    rows="3" 
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none" 
+                    placeholder="Add specific details, material used, or future observations..."
+                  ></textarea>
+                </div>
 
-              <div className="pt-2 mt-2 flex gap-3">
-                <button type="submit" disabled={isSubmittingChart} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-70">
-                  <Save size={16} /> {isSubmittingChart ? 'Saving...' : 'Save Record'}
-                </button>
+                <div className="pt-2 mt-2 flex gap-3">
+                  <button type="submit" disabled={isSubmittingChart} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-70">
+                    <Save size={16} /> {isSubmittingChart ? 'Saving...' : 'Save Record'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
         </div>
       )}
-
     </div>
   );
 }
