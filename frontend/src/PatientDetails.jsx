@@ -7,6 +7,75 @@ import {
   CreditCard, History, Activity, ChevronLeft, ChevronRight, Stethoscope, XCircle, Save
 } from 'lucide-react';
 
+const getToothType = (num) => {
+  const n = parseInt(num);
+  if ([1, 2, 3, 14, 15, 16, 17, 18, 19, 30, 31, 32].includes(n)) return 'molar';
+  if ([4, 5, 12, 13, 20, 21, 28, 29].includes(n)) return 'premolar';
+  if ([6, 11, 22, 27].includes(n)) return 'canine';
+  return 'incisor';
+};
+
+const RealisticTooth = ({ type, status, number, isLower }) => {
+  const getFillColor = () => {
+    switch(status) {
+      case 'Cavity': return '#fee2e2';
+      case 'Filling': return '#dbeafe';
+      case 'Crown': return '#fef3c7';
+      case 'Missing': return '#f9fafb';
+      case 'Extracted': return '#f3f4f6';
+      default: return '#ffffff';
+    }
+  };
+
+  const getStrokeColor = () => {
+    switch(status) {
+      case 'Cavity': return '#ef4444';
+      case 'Filling': return '#3b82f6';
+      case 'Crown': return '#f59e0b';
+      case 'Missing': return '#e5e7eb';
+      case 'Extracted': return '#9ca3af';
+      default: return '#d1d5db';
+    }
+  };
+
+  const getPath = () => {
+    if (type === 'molar') return "M 6 20 C 6 5, 12 0, 15 0 C 18 0, 20 12, 20 12 C 20 12, 22 0, 25 0 C 28 0, 34 5, 34 20 C 38 25, 38 50, 34 55 C 28 55, 20 50, 20 50 C 20 50, 12 55, 6 55 C 2 50, 2 25, 6 20 Z";
+    if (type === 'premolar') return "M 10 20 C 10 5, 15 0, 20 0 C 25 0, 30 5, 30 20 C 34 25, 32 50, 25 55 C 20 53, 20 53, 15 55 C 8 50, 6 25, 10 20 Z";
+    if (type === 'canine') return "M 12 20 C 15 5, 18 0, 20 0 C 22 0, 25 5, 28 20 C 34 25, 30 50, 20 55 C 10 50, 6 25, 12 20 Z";
+    return "M 10 20 C 10 5, 15 0, 20 0 C 25 0, 30 5, 30 20 C 34 25, 34 50, 30 55 C 25 55, 15 55, 10 55 C 6 50, 6 25, 10 20 Z";
+  };
+
+  const isMissing = status === 'Missing';
+  const isExtracted = status === 'Extracted';
+
+  return (
+    <div className="relative flex flex-col items-center">
+      {!isLower && <span className="text-[10px] font-bold text-gray-400 mb-1 transition-all duration-200 group-hover:text-blue-600 group-hover:scale-150 inline-block origin-bottom">{number}</span>}
+      <div className={`relative transition-transform duration-200 ${isLower ? 'group-hover:translate-y-1' : 'group-hover:-translate-y-1'} group-hover:scale-105`}>
+        <svg 
+          viewBox="0 0 40 60" 
+          className={`w-7 h-10 ${isLower ? 'rotate-180' : ''} ${isMissing ? 'opacity-40' : ''}`}
+        >
+          <path
+            d={getPath()}
+            fill={getFillColor()}
+            stroke={getStrokeColor()}
+            strokeWidth="1.5"
+            strokeDasharray={isMissing ? "3 3" : "0"}
+            strokeLinejoin="round"
+          />
+        </svg>
+        {isExtracted && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <XCircle size={20} className="text-gray-400" />
+          </div>
+        )}
+      </div>
+      {isLower && <span className="text-[10px] font-bold text-gray-400 mt-1 transition-all duration-200 group-hover:text-blue-600 group-hover:scale-150 inline-block origin-top">{number}</span>}
+    </div>
+  );
+};
+
 export default function PatientDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -74,14 +143,14 @@ export default function PatientDetails() {
     return records[0].condition_name;
   };
 
-  const getToothColor = (condition) => {
+  const getBadgeColor = (condition) => {
     switch (condition) {
-      case 'Cavity': return 'bg-red-100 border-red-400 text-red-700';
-      case 'Missing': return 'bg-gray-100 border-gray-300 text-gray-400 opacity-50';
-      case 'Extracted': return 'bg-slate-800 border-slate-900 text-white';
-      case 'Filling': return 'bg-blue-100 border-blue-400 text-blue-700';
-      case 'Crown': return 'bg-amber-100 border-amber-400 text-amber-700';
-      default: return 'bg-white border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600';
+      case 'Cavity': return 'bg-red-100 border-red-200 text-red-700';
+      case 'Missing': return 'bg-gray-100 border-gray-200 text-gray-500';
+      case 'Extracted': return 'bg-gray-200 border-gray-300 text-gray-600';
+      case 'Filling': return 'bg-blue-100 border-blue-200 text-blue-700';
+      case 'Crown': return 'bg-amber-100 border-amber-200 text-amber-700';
+      default: return 'bg-white border-gray-200 text-gray-600';
     }
   };
 
@@ -168,56 +237,58 @@ export default function PatientDetails() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-6">
           <div className="flex items-center gap-2">
             <Stethoscope className="text-blue-600" size={20} />
             <h2 className="text-lg font-bold text-gray-900 tracking-tight">Clinical Dental Chart</h2>
           </div>
-          <span className="text-xs text-gray-500 font-medium">Click a tooth to update record</span>
+          <span className="text-xs text-gray-500 font-medium">Click a tooth to update</span>
         </div>
 
-        <div className="flex flex-col items-center gap-8 mb-4 overflow-x-auto pb-4">
-          <div className="flex gap-1.5">
-            {upperTeeth.map(num => {
-              const status = getToothStatus(num);
-              return (
-                <button 
-                  key={`upper-${num}`}
-                  onClick={() => setSelectedTooth(num)}
-                  className={`w-9 h-12 flex flex-col items-center justify-center border-2 rounded-b-xl rounded-t-sm transition-all shadow-sm font-mono text-sm font-bold ${getToothColor(status)}`}
-                  title={`Tooth ${num} - ${status}`}
-                >
-                  {num}
-                </button>
-              );
-            })}
+        <div className="flex flex-col items-center gap-8 mb-4 overflow-x-auto pb-4 custom-scrollbar">
+          <div className="flex gap-2">
+            {upperTeeth.map(num => (
+              <button 
+                key={`upper-${num}`}
+                onClick={() => setSelectedTooth(num)}
+                className="focus:outline-none group p-1.5 rounded-xl hover:bg-blue-50/50 transition-colors"
+              >
+                <RealisticTooth 
+                  type={getToothType(num)} 
+                  status={getToothStatus(num)} 
+                  number={num} 
+                  isLower={false}
+                />
+              </button>
+            ))}
           </div>
 
-          <div className="flex gap-1.5">
-            {lowerTeeth.map(num => {
-              const status = getToothStatus(num);
-              return (
-                <button 
-                  key={`lower-${num}`}
-                  onClick={() => setSelectedTooth(num)}
-                  className={`w-9 h-12 flex flex-col items-center justify-center border-2 rounded-t-xl rounded-b-sm transition-all shadow-sm font-mono text-sm font-bold ${getToothColor(status)}`}
-                  title={`Tooth ${num} - ${status}`}
-                >
-                  {num}
-                </button>
-              );
-            })}
+          <div className="flex gap-2">
+            {lowerTeeth.map(num => (
+              <button 
+                key={`lower-${num}`}
+                onClick={() => setSelectedTooth(num)}
+                className="focus:outline-none group p-1.5 rounded-xl hover:bg-blue-50/50 transition-colors"
+              >
+                <RealisticTooth 
+                  type={getToothType(num)} 
+                  status={getToothStatus(num)} 
+                  number={num} 
+                  isLower={true}
+                />
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-4 mt-6 pt-4 border-t border-gray-100 text-xs font-semibold text-gray-600 uppercase">
-          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-gray-200 bg-white"></div> Normal</span>
-          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-red-400 bg-red-100"></div> Cavity</span>
-          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-blue-400 bg-blue-100"></div> Filling</span>
-          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-amber-400 bg-amber-100"></div> Crown</span>
-          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-gray-300 bg-gray-100"></div> Missing</span>
-          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-slate-900 bg-slate-800"></div> Extracted</span>
+        <div className="flex flex-wrap justify-center gap-6 mt-6 pt-4 border-t border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border border-gray-300 bg-white"></div> Normal</span>
+          <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border border-red-400 bg-red-100"></div> Cavity</span>
+          <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border border-blue-400 bg-blue-100"></div> Filling</span>
+          <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border border-amber-400 bg-amber-100"></div> Crown</span>
+          <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border border-gray-200 bg-gray-50"></div> Missing</span>
+          <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border border-gray-400 bg-gray-100"></div> Extracted</span>
         </div>
       </div>
 
@@ -306,7 +377,7 @@ export default function PatientDetails() {
                       <div key={record.id} className="relative pl-3 border-l-2 border-blue-200">
                         <div className="absolute -left-[5px] top-1 w-2 h-2 rounded-full bg-blue-500"></div>
                         <div className="flex justify-between items-start mb-0.5">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${getToothColor(record.condition_name)}`}>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${getBadgeColor(record.condition_name)}`}>
                             {record.condition_name}
                           </span>
                           <span className="text-[10px] text-slate-400 font-medium">
