@@ -8,7 +8,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-const JWT_SECRET = 'dental_clinic_super_secret_key_2024'; 
+const JWT_SECRET = 'dental_clinic_super_secret_key_2024';
 
 const db = mysql.createPool({
     host: 'localhost',
@@ -24,7 +24,7 @@ const logActivity = (event, description) => {
 
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; 
+    const token = authHeader && authHeader.split(' ')[1];
     if (!token) return res.status(401).json({ message: 'Access Denied' });
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) return res.status(403).json({ message: 'Invalid Token' });
@@ -127,7 +127,7 @@ app.get('/api/logs', authenticateToken, (req, res) => {
     }
 
     dataSql += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
-    
+
     db.query(countSql, params, (err, countResult) => {
         if (err) return res.status(500).json({ error: err.message });
         const total = countResult[0].total;
@@ -144,6 +144,7 @@ app.post('/api/patients', authenticateToken, (req, res) => {
     const middleName = req.body.middleName || req.body.middle_name || '';
     const lastName = req.body.lastName || req.body.last_name;
     const age = req.body.age;
+    const gender = req.body.gender || null;
     const phone = req.body.contact_number || req.body.cellphone || req.body.contactNumber || '';
     const address = req.body.address;
     const photo = req.body.photo || null;
@@ -151,9 +152,9 @@ app.post('/api/patients', authenticateToken, (req, res) => {
     db.query('SELECT id FROM patients WHERE first_name = ? AND last_name = ? AND (contact_number = ? OR age = ?)', [firstName, lastName, phone, age], (checkErr, checkResults) => {
         if (checkErr) return res.status(500).json({ error: checkErr.message });
         if (checkResults.length > 0) {
-            return res.status(409).json({ 
-                success: false, 
-                message: `Duplicated record blocked: Patient name ${firstName} ${lastName} is already registered.` 
+            return res.status(409).json({
+                success: false,
+                message: `Duplicated record blocked: Patient name ${firstName} ${lastName} is already registered.`
             });
         }
         const year = new Date().getFullYear().toString().slice(-2);
@@ -161,8 +162,8 @@ app.post('/api/patients', authenticateToken, (req, res) => {
             if (err) return res.status(500).json({ error: err.message });
             const nextNumber = (result[0].count + 1).toString().padStart(3, '0');
             const uniqueId = `F${year}${nextNumber}`;
-            const sql = `INSERT INTO patients (unique_id, first_name, middle_name, last_name, age, contact_number, address, photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-            db.query(sql, [uniqueId, firstName, middleName, lastName, age, phone, address, photo], (err) => {
+            const sql = `INSERT INTO patients (unique_id, first_name, middle_name, last_name, age, gender, contact_number, address, photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            db.query(sql, [uniqueId, firstName, middleName, lastName, age, gender, phone, address, photo], (err) => {
                 if (err) return res.status(500).json({ error: err.message });
                 logActivity('REGISTRATION', `Registered profile ID: ${uniqueId}`);
                 res.json({ success: true, uniqueId });
@@ -173,12 +174,16 @@ app.post('/api/patients', authenticateToken, (req, res) => {
 
 app.put('/api/patients/:id', authenticateToken, (req, res) => {
     const { id } = req.params;
-    const { first_name, middle_name, last_name, contact_number, address } = req.body;
-    const sql = `UPDATE patients SET first_name = ?, middle_name = ?, last_name = ?, contact_number = ?, address = ? WHERE id = ?`;
-    db.query(sql, [first_name, middle_name, last_name, contact_number, address, id], (err) => {
+    const { first_name, middle_name, last_name, gender, contact_number, address } = req.body;
+    db.query('SELECT unique_id FROM patients WHERE id = ?', [id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
-        logActivity('UPDATE', `Updated profile ID: ${id}`);
-        res.json({ success: true });
+        const uniqueId = results[0]?.unique_id || id;
+        const sql = `UPDATE patients SET first_name = ?, middle_name = ?, last_name = ?, gender = ?, contact_number = ?, address = ? WHERE id = ?`;
+        db.query(sql, [first_name, middle_name, last_name, gender, contact_number, address, id], (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            logActivity('UPDATE', `Updated profile ID: ${uniqueId}`);
+            res.json({ success: true });
+        });
     });
 });
 
@@ -188,7 +193,7 @@ app.get('/api/patients', authenticateToken, (req, res) => {
     const offset = (page - 1) * limit;
     const { query } = req.query;
     let countSql = 'SELECT COUNT(*) as total FROM patients';
-    let dataSql = 'SELECT id, unique_id, first_name, middle_name, last_name, contact_number FROM patients';
+    let dataSql = 'SELECT id, unique_id, first_name, middle_name, last_name, contact_number, gender FROM patients';
     let params = [];
     if (query) {
         const condition = ' WHERE unique_id LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR contact_number LIKE ?';
@@ -261,6 +266,44 @@ app.get('/api/procedures', authenticateToken, (req, res) => {
     });
 });
 
+app.get('/api/dentists', authenticateToken, (req, res) => {
+    db.query('SELECT id, name, commission_rate FROM dentists', (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+app.get('/api/reports/dentist-earnings', authenticateToken, (req, res) => {
+    const { dateFilter, customDate } = req.query;
+    let sql = `
+        SELECT 
+            d.id,
+            d.name,
+            d.commission_rate,
+            COUNT(t.id) as total_treatments,
+            IFNULL(SUM(t.amount_paid), 0) as total_revenue,
+            IFNULL(SUM(t.amount_paid * (d.commission_rate / 100)), 0) as total_commission
+        FROM dentists d
+        LEFT JOIN transactions t ON d.id = t.dentist_id
+    `;
+    let params = [];
+    if (dateFilter === 'Today') {
+        sql += ' AND DATE(t.transaction_date) = CURDATE()';
+    } else if (dateFilter === 'Week') {
+        sql += ' AND YEARWEEK(t.transaction_date, 1) = YEARWEEK(CURDATE(), 1)';
+    } else if (dateFilter === 'Month') {
+        sql += ' AND MONTH(t.transaction_date) = MONTH(CURDATE()) AND YEAR(t.transaction_date) = YEAR(CURDATE())';
+    } else if (dateFilter === 'Custom' && customDate) {
+        sql += ' AND DATE(t.transaction_date) = ?';
+        params.push(customDate);
+    }
+    sql += ' GROUP BY d.id, d.name, d.commission_rate';
+    db.query(sql, params, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
 app.get('/api/transactions', authenticateToken, (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -289,14 +332,14 @@ app.get('/api/transactions', authenticateToken, (req, res) => {
 });
 
 app.post('/api/transactions', authenticateToken, (req, res) => {
-    const { patient_id, procedure_id, amount_paid } = req.body;
+    const { patient_id, procedure_id, dentist_id, amount_paid } = req.body;
     const logQuery = `SELECT p.unique_id, p.first_name, p.last_name, pr.name as procedure_name FROM patients p, procedures pr WHERE p.id = ? AND pr.id = ?`;
     db.query(logQuery, [patient_id, procedure_id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         const detail = results[0];
-        db.query('INSERT INTO transactions (patient_id, procedure_id, amount_paid, transaction_date) VALUES (?, ?, ?, NOW())', [patient_id, procedure_id, amount_paid], (err, result) => {
+        db.query('INSERT INTO transactions (patient_id, procedure_id, dentist_id, amount_paid, transaction_date) VALUES (?, ?, ?, ?, NOW())', [patient_id, procedure_id, dentist_id, amount_paid], (err, result) => {
             if (err) return res.status(500).json({ error: err.message });
-            if (detail) logActivity('PAYMENT', `Settled PHP ${amount_paid} for ${detail.procedure_name}`);
+            if (detail) logActivity('PAYMENT', `Settled PHP ${amount_paid} by ${detail.unique_id} for ${detail.procedure_name}`);
             res.json({ success: true, transactionId: result.insertId });
         });
     });
@@ -321,7 +364,22 @@ app.get('/api/reports/shift', authenticateToken, (req, res) => {
 });
 
 app.get('/api/appointments', authenticateToken, (req, res) => {
-    const sql = `SELECT a.*, p.first_name, p.last_name, p.contact_number as patient_phone FROM appointments a JOIN patients p ON a.patient_id = p.id WHERE a.appointment_date >= CURDATE() ORDER BY a.appointment_date ASC, a.appointment_time ASC`;
+    const sql = `SELECT a.*, p.first_name, p.last_name, p.contact_number as patient_phone, d.name as dentist_name FROM appointments a JOIN patients p ON a.patient_id = p.id LEFT JOIN dentists d ON a.dentist_id = d.id WHERE a.appointment_date >= CURDATE() ORDER BY a.appointment_date ASC, a.appointment_time ASC`;
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+app.get('/api/queue/today', authenticateToken, (req, res) => {
+    const sql = `
+        SELECT a.id, a.appointment_time, p.first_name, p.last_name, d.name as dentist_name, a.reason
+        FROM appointments a 
+        JOIN patients p ON a.patient_id = p.id 
+        LEFT JOIN dentists d ON a.dentist_id = d.id 
+        WHERE a.appointment_date = CURDATE() AND a.status = 'Scheduled' 
+        ORDER BY a.appointment_time ASC
+    `;
     db.query(sql, (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
@@ -329,12 +387,17 @@ app.get('/api/appointments', authenticateToken, (req, res) => {
 });
 
 app.post('/api/appointments', authenticateToken, (req, res) => {
-    const { patient_id, appointment_date, appointment_time, reason } = req.body;
-    const sql = `INSERT INTO appointments (patient_id, appointment_date, appointment_time, reason) VALUES (?, ?, ?, ?)`;
-    db.query(sql, [patient_id, appointment_date, appointment_time, reason], (err, result) => {
+    const { patient_id, dentist_id, appointment_date, appointment_time, reason } = req.body;
+    db.query('SELECT unique_id, first_name, last_name FROM patients WHERE id = ?', [patient_id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
-        logActivity('APPOINTMENT', `Scheduled appointment for Patient ID ${patient_id}`);
-        res.json({ success: true, appointmentId: result.insertId });
+        const patient = results[0];
+        const patientStr = patient ? patient.unique_id : patient_id;
+        const sql = `INSERT INTO appointments (patient_id, dentist_id, appointment_date, appointment_time, reason) VALUES (?, ?, ?, ?, ?)`;
+        db.query(sql, [patient_id, dentist_id, appointment_date, appointment_time, reason], (err, result) => {
+            if (err) return res.status(500).json({ error: err.message });
+            logActivity('APPOINTMENT', `Scheduled appointment for ${patientStr}`);
+            res.json({ success: true, appointmentId: result.insertId });
+        });
     });
 });
 
