@@ -9,9 +9,14 @@ import {
 
 const getToothType = (num) => {
   const n = parseInt(num);
-  if ([1, 2, 3, 14, 15, 16, 17, 18, 19, 30, 31, 32].includes(n)) return 'molar';
-  if ([4, 5, 12, 13, 20, 21, 28, 29].includes(n)) return 'premolar';
-  if ([6, 11, 22, 27].includes(n)) return 'canine';
+  // Using FDI World Dental Federation numbering system logic
+  // The second digit indicates the tooth type
+  const lastDigit = n % 10;
+  
+  if ([1, 2].includes(lastDigit)) return 'incisor';
+  if (lastDigit === 3) return 'canine';
+  if ([4, 5].includes(lastDigit)) return 'premolar';
+  if ([6, 7, 8].includes(lastDigit)) return 'molar';
   return 'incisor';
 };
 
@@ -21,7 +26,7 @@ const RealisticTooth = ({ type, status, number, isLower }) => {
       case 'Cavity': return '#fee2e2';
       case 'Filling': return '#dbeafe';
       case 'Crown': return '#fef3c7';
-      case 'Missing': return '#f9fafb';
+      case 'Missing': return '#f3e8ff'; // Noticeable Purple-100
       case 'Extracted': return '#f3f4f6';
       default: return '#ffffff';
     }
@@ -32,7 +37,7 @@ const RealisticTooth = ({ type, status, number, isLower }) => {
       case 'Cavity': return '#ef4444';
       case 'Filling': return '#3b82f6';
       case 'Crown': return '#f59e0b';
-      case 'Missing': return '#e5e7eb';
+      case 'Missing': return '#a855f7'; // Strong Purple-500
       case 'Extracted': return '#9ca3af';
       default: return '#d1d5db';
     }
@@ -54,7 +59,7 @@ const RealisticTooth = ({ type, status, number, isLower }) => {
       <div className={`relative transition-transform duration-200 ${isLower ? 'group-hover:translate-y-1' : 'group-hover:-translate-y-1'} group-hover:scale-105`}>
         <svg 
           viewBox="0 0 40 60" 
-          className={`w-7 h-10 ${isLower ? 'rotate-180' : ''} ${isMissing ? 'opacity-40' : ''}`}
+          className={`w-7 h-10 ${isLower ? 'rotate-180' : ''}`} 
         >
           <path
             d={getPath()}
@@ -146,7 +151,7 @@ export default function PatientDetails() {
   const getBadgeColor = (condition) => {
     switch (condition) {
       case 'Cavity': return 'bg-red-100 border-red-200 text-red-700';
-      case 'Missing': return 'bg-gray-100 border-gray-200 text-gray-500';
+      case 'Missing': return 'bg-purple-100 border-purple-200 text-purple-700';
       case 'Extracted': return 'bg-gray-200 border-gray-300 text-gray-600';
       case 'Filling': return 'bg-blue-100 border-blue-200 text-blue-700';
       case 'Crown': return 'bg-amber-100 border-amber-200 text-amber-700';
@@ -166,8 +171,10 @@ export default function PatientDetails() {
     return <div className="text-gray-800 text-lg text-center pt-20 font-bold">Patient not found.</div>;
   }
 
-  const upperTeeth = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-  const lowerTeeth = [32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17];
+  const upperRightTeeth = [18, 17, 16, 15, 14, 13, 12, 11];
+  const upperLeftTeeth = [21, 22, 23, 24, 25, 26, 27, 28];
+  const bottomRightTeeth = [48, 47, 46, 45, 44, 43, 42, 41];
+  const bottomLeftTeeth = [31, 32, 33, 34, 35, 36, 37, 38];
 
   const totalPages = Math.ceil(history.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -180,7 +187,7 @@ export default function PatientDetails() {
   return (
     <div className="max-w-4xl mx-auto pb-10">
       <button 
-        onClick={() => navigate('/patients')}
+        onClick={() => navigate('/patients/search')}
         className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 mb-4 transition-colors text-sm font-medium"
       >
         <ArrowLeft size={16} /> Back to Directory
@@ -247,39 +254,83 @@ export default function PatientDetails() {
         </div>
 
         <div className="flex flex-col items-center gap-8 mb-4 overflow-x-auto pb-4 custom-scrollbar">
-          <div className="flex gap-2">
-            {upperTeeth.map(num => (
-              <button 
-                key={`upper-${num}`}
-                onClick={() => setSelectedTooth(num)}
-                className="focus:outline-none group p-1.5 rounded-xl hover:bg-blue-50/50 transition-colors"
-              >
-                <RealisticTooth 
-                  type={getToothType(num)} 
-                  status={getToothStatus(num)} 
-                  number={num} 
-                  isLower={false}
-                />
-              </button>
-            ))}
+          
+          <div className="flex items-center gap-4">
+            <div className="flex gap-2">
+              {upperRightTeeth.map(num => (
+                <button 
+                  key={`upper-${num}`}
+                  onClick={() => setSelectedTooth(num)}
+                  className="focus:outline-none group p-1.5 rounded-xl hover:bg-blue-50/50 transition-colors"
+                >
+                  <RealisticTooth 
+                    type={getToothType(num)} 
+                    status={getToothStatus(num)} 
+                    number={num} 
+                    isLower={false}
+                  />
+                </button>
+              ))}
+            </div>
+            
+            <div className="w-0.5 h-16 bg-gray-200 rounded-full"></div>
+
+            <div className="flex gap-2">
+              {upperLeftTeeth.map(num => (
+                <button 
+                  key={`upper-${num}`}
+                  onClick={() => setSelectedTooth(num)}
+                  className="focus:outline-none group p-1.5 rounded-xl hover:bg-blue-50/50 transition-colors"
+                >
+                  <RealisticTooth 
+                    type={getToothType(num)} 
+                    status={getToothStatus(num)} 
+                    number={num} 
+                    isLower={false}
+                  />
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex gap-2">
-            {lowerTeeth.map(num => (
-              <button 
-                key={`lower-${num}`}
-                onClick={() => setSelectedTooth(num)}
-                className="focus:outline-none group p-1.5 rounded-xl hover:bg-blue-50/50 transition-colors"
-              >
-                <RealisticTooth 
-                  type={getToothType(num)} 
-                  status={getToothStatus(num)} 
-                  number={num} 
-                  isLower={true}
-                />
-              </button>
-            ))}
+          <div className="flex items-center gap-4">
+            <div className="flex gap-2">
+              {bottomRightTeeth.map(num => (
+                <button 
+                  key={`lower-${num}`}
+                  onClick={() => setSelectedTooth(num)}
+                  className="focus:outline-none group p-1.5 rounded-xl hover:bg-blue-50/50 transition-colors"
+                >
+                  <RealisticTooth 
+                    type={getToothType(num)} 
+                    status={getToothStatus(num)} 
+                    number={num} 
+                    isLower={true}
+                  />
+                </button>
+              ))}
+            </div>
+            
+            <div className="w-0.5 h-16 bg-gray-200 rounded-full"></div>
+
+            <div className="flex gap-2">
+              {bottomLeftTeeth.map(num => (
+                <button 
+                  key={`lower-${num}`}
+                  onClick={() => setSelectedTooth(num)}
+                  className="focus:outline-none group p-1.5 rounded-xl hover:bg-blue-50/50 transition-colors"
+                >
+                  <RealisticTooth 
+                    type={getToothType(num)} 
+                    status={getToothStatus(num)} 
+                    number={num} 
+                    isLower={true}
+                  />
+                </button>
+              ))}
+            </div>
           </div>
+
         </div>
 
         <div className="flex flex-wrap justify-center gap-6 mt-6 pt-4 border-t border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -287,7 +338,7 @@ export default function PatientDetails() {
           <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border border-red-400 bg-red-100"></div> Cavity</span>
           <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border border-blue-400 bg-blue-100"></div> Filling</span>
           <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border border-amber-400 bg-amber-100"></div> Crown</span>
-          <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border border-gray-200 bg-gray-50"></div> Missing</span>
+          <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border border-purple-400 bg-purple-100"></div> Missing</span>
           <span className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border border-gray-400 bg-gray-100"></div> Extracted</span>
         </div>
       </div>
@@ -305,12 +356,22 @@ export default function PatientDetails() {
                 <div key={record.id} className="bg-white p-4 rounded-lg border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-blue-300 transition-colors shadow-sm">
                   <div className="min-w-0 flex-1 overflow-hidden">
                     <h4 className="text-gray-900 text-sm font-semibold mb-1 break-all uppercase">{record.procedure_name}</h4>
-                    <span className="flex items-center gap-1.5 text-gray-500 text-xs">
-                      <Calendar size={12} className="shrink-0" /> 
-                      {new Date(record.transaction_date).toLocaleDateString('en-US', { 
-                        year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-                      })}
-                    </span>
+                    
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2">
+                      <span className="flex items-center gap-1.5 text-gray-500 text-xs">
+                        <Calendar size={12} className="shrink-0" /> 
+                        {new Date(record.transaction_date).toLocaleDateString('en-US', { 
+                          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+                        })}
+                      </span>
+                      
+                      {/* Attending Dentist Badge added here */}
+                      <span className="flex items-center gap-1.5 text-blue-700 text-[10px] font-bold uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded border border-blue-200 w-fit">
+                        <Stethoscope size={12} className="shrink-0" /> 
+                        {record.dentist_name || 'Unknown Dentist'}
+                      </span>
+                    </div>
+
                   </div>
                   <div className="flex flex-col items-start md:items-end shrink-0 mt-2 md:mt-0">
                     <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5 font-bold">Amount Paid</span>

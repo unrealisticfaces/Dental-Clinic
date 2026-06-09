@@ -4,6 +4,7 @@ import axios from 'axios';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
+// Components
 import Dashboard from './Dashboard';
 import Sidebar from './Sidebar';
 import Login from './Login';
@@ -18,6 +19,17 @@ import Appointments from './Appointments';
 import DentistEarnings from './DentistEarnings';
 import QueueBoard from './QueueBoard';
 import TVSettings from './TVSettings';
+import Kiosk from './Kiosk';
+import QueueManager from './QueueManager';
+import TabletQueueManager from './TabletQueueManager';
+
+// ==========================================
+// AXIOS CONFIGURATION
+// ==========================================
+// We use backticks (`) instead of quotes (') to ensure 
+// the variable ${serverIP} is actually read.
+const serverIP = window.location.hostname;
+axios.defaults.baseURL = `http://${serverIP}:5000`;
 
 axios.interceptors.request.use(
   (config) => {
@@ -49,6 +61,7 @@ export default function App() {
 
   if (isCheckingAuth) return null;
 
+  // LOGIN WALL
   if (!isAuthenticated) {
     return (
       <>
@@ -61,11 +74,21 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/queue" element={<QueueBoard />} />
         
+        {/* ========================================== */}
+        {/* FULL-SCREEN APPS (NO SIDEBAR)              */}
+        {/* ========================================== */}
+        <Route path="/queue" element={<QueueBoard />} />
+        <Route path="/kiosk" element={<Kiosk />} />
+        <Route path="/tablet-queue" element={<TabletQueueManager />} />
+        
+        {/* ========================================== */}
+        {/* ADMIN DASHBOARD (WITH SIDEBAR)             */}
+        {/* ========================================== */}
         <Route path="*" element={
           <div className="flex h-screen bg-gray-50 text-gray-900 font-sans">
             <Sidebar onLogout={handleLogout} />
+            
             <div className="flex-1 overflow-y-auto p-6">
               <Routes>
                 <Route path="/" element={<Dashboard />} />
@@ -79,12 +102,17 @@ export default function App() {
                 <Route path="/earnings" element={<DentistEarnings />} />
                 <Route path="/tv-settings" element={<TVSettings />} />
                 <Route path="/logs" element={<SystemLogs />} />
+                <Route path="/queue-manager" element={<QueueManager />} />
+                
+                {/* Fallback to Dashboard */}
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
             </div>
+            
             <ToastContainer position="bottom-right" theme="light" />
           </div>
         } />
+
       </Routes>
     </Router>
   );

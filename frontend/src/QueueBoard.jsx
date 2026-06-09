@@ -1,40 +1,128 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import { Stethoscope, VolumeX, MonitorPlay } from 'lucide-react';
+import { VolumeX, MonitorPlay } from 'lucide-react';
 
 export default function QueueBoard() {
   const [queue, setQueue] = useState([]);
   const [time, setTime] = useState(new Date());
   
-  // Remote controlled state
   const [playlist, setPlaylist] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(100);
-  const [videoFit, setVideoFit] = useState('contain');
+  const [videoFit, setVideoFit] = useState('cover'); 
   
   const [isAudioMutedByBrowser, setIsAudioMutedByBrowser] = useState(true);
   const videoRef = useRef(null);
+  
+  const previousServingId = useRef(null);
+  const currentTicketRef = useRef(null);
+  const lastAnnounceTime = useRef(0);
 
-  // Sync state from local storage (The Remote Control Bridge)
-  const syncState = () => {
-    setPlaylist(JSON.parse(localStorage.getItem('tv_playlist') || '[]'));
-    setCurrentIndex(Number(localStorage.getItem('tv_currentIndex')) || 0);
-    setIsPlaying(localStorage.getItem('tv_isPlaying') === 'true');
-    setVolume(Number(localStorage.getItem('tv_volume')) || 100);
-    setVideoFit(localStorage.getItem('tv_videoFit') || 'contain');
+  const formatQueueNumber = (id) => `N-${String(id).padStart(3, '0')}`;
+
+  // Pre-load voices 
+  useEffect(() => {
+    const loadVoices = () => window.speechSynthesis.getVoices();
+    loadVoices();
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
+
+  // 1. Synthesize the "Ding-Dong" Chime
+  const playChime = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioContext();
+      
+      const playTone = (freq, startTime, duration) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + startTime);
+        
+        gain.gain.setValueAtTime(0, ctx.currentTime + startTime);
+        gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + startTime + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + startTime + duration);
+        
+        osc.start(ctx.currentTime + startTime);
+        osc.stop(ctx.currentTime + startTime + duration);
+      };
+
+      playTone(659.25, 0, 1.0);    
+      playTone(523.25, 0.5, 1.5);  
+    } catch (e) {
+      console.log("Audio not supported or unlocked yet.");
+    }
+  };
+
+  // 2. Announce Ticket
+  const announceTicket = useCallback((id, force = false) => {
+    if (!id || !('speechSynthesis' in window)) return;
+    
+    // Anti-Double-Call Guard
+    const now = Date.now();
+    if (!force && now - lastAnnounceTime.current < 4000) return;
+    lastAnnounceTime.current = now;
+
+    playChime();
+    
+    setTimeout(() => {
+      const formattedNumber = formatQueueNumber(id);
+      const spelledOut = formattedNumber.replace('-', '. ').split('').join('. ');
+      
+      const utterance = new SpeechSynthesisUtterance(`Now serving ticket number. ${spelledOut}.`);
+      
+      const voices = window.speechSynthesis.getVoices();
+      let bestVoice = voices.find(v => v.name === 'Google UK English Male' || v.name === 'Google US English');
+      if (!bestVoice) bestVoice = voices.find(v => v.name.includes('Male') || v.name.includes('David') || v.name.includes('Daniel'));
+      
+      if (bestVoice) utterance.voice = bestVoice;
+
+      utterance.rate = 0.8; 
+      utterance.pitch = 0.9; 
+      
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    }, 1500); 
+  }, []);
+
+  // Sync state from remote control
+  const syncState = (e) => {
+    if (!e || e.key === 'tv_playlist') setPlaylist(JSON.parse(localStorage.getItem('tv_playlist') || '[]'));
+    if (!e || e.key === 'tv_currentIndex') setCurrentIndex(Number(localStorage.getItem('tv_currentIndex')) || 0);
+    if (!e || e.key === 'tv_isPlaying') setIsPlaying(localStorage.getItem('tv_isPlaying') === 'true');
+    if (!e || e.key === 'tv_volume') setVolume(Number(localStorage.getItem('tv_volume')) || 100);
+    if (!e || e.key === 'tv_videoFit') setVideoFit(localStorage.getItem('tv_videoFit') || 'cover');
+    
+    if (e && e.key === 'tv_chime_trigger') {
+      const token = localStorage.getItem('token');
+      axios.get('http://localhost:5000/api/queue/today', { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => {
+          if (res.data.length > 0) {
+            const freshId = res.data[0].id;
+            currentTicketRef.current = freshId;
+            previousServingId.current = freshId; 
+            setQueue(res.data);
+            announceTicket(freshId, true); 
+          }
+        }).catch(err => console.log(err));
+    }
   };
 
   useEffect(() => {
-    syncState(); // Initial load
-    window.addEventListener('storage', syncState); // Listen for changes from Settings tab
+    syncState(); 
+    window.addEventListener('storage', syncState); 
     return () => window.removeEventListener('storage', syncState);
   }, []);
 
   // Handle Playback Engine
   useEffect(() => {
     if (!videoRef.current || playlist.length === 0) return;
-    
     videoRef.current.volume = volume / 100;
     
     if (isPlaying) {
@@ -55,25 +143,40 @@ export default function QueueBoard() {
 
   const handleVideoEnded = () => {
     if (playlist.length === 0) return;
-    const nextIndex = (currentIndex + 1) % playlist.length;
+    const updatedPlaylist = playlist.filter((_, idx) => idx !== currentIndex);
+    let nextIndex = currentIndex;
+    if (nextIndex >= updatedPlaylist.length) nextIndex = 0; 
+    setPlaylist(updatedPlaylist);
     setCurrentIndex(nextIndex);
-    localStorage.setItem('tv_currentIndex', nextIndex.toString()); // Update settings tab UI
+    localStorage.setItem('tv_playlist', JSON.stringify(updatedPlaylist));
+    localStorage.setItem('tv_currentIndex', nextIndex.toString());
+    if (updatedPlaylist.length === 0) {
+      setIsPlaying(false);
+      localStorage.setItem('tv_isPlaying', 'false');
+    }
   };
 
   const forceUnmuteAndFullscreen = async () => {
     try {
       if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
     } catch (err) {}
-
+    
     if (videoRef.current && isAudioMutedByBrowser) {
       videoRef.current.muted = false;
       videoRef.current.volume = volume / 100;
       setIsAudioMutedByBrowser(false);
       if (isPlaying) videoRef.current.play();
+      
+      if ('speechSynthesis' in window) {
+        const silentUtterance = new SpeechSynthesisUtterance("");
+        silentUtterance.volume = 0;
+        window.speechSynthesis.speak(silentUtterance);
+      }
+      playChime();
     }
   };
 
-  // Poll Database for Queue
+  // Regular Background Polling
   useEffect(() => {
     const fetchQueue = async () => {
       try {
@@ -81,13 +184,26 @@ export default function QueueBoard() {
         const res = await axios.get('http://localhost:5000/api/queue/today', {
           headers: { Authorization: `Bearer ${token}` }
         });
+        
+        if (res.data.length > 0) {
+          const currentId = res.data[0].id;
+          if (previousServingId.current !== null && previousServingId.current !== currentId) {
+            announceTicket(currentId);
+          }
+          previousServingId.current = currentId;
+          currentTicketRef.current = currentId;
+        } else {
+          previousServingId.current = null;
+          currentTicketRef.current = null;
+        }
         setQueue(res.data);
       } catch (err) {}
     };
+    
     fetchQueue();
-    const interval = setInterval(fetchQueue, 10000);
+    const interval = setInterval(fetchQueue, 5000); 
     return () => clearInterval(interval);
-  }, []);
+  }, [announceTicket]);
 
   // Clock
   useEffect(() => {
@@ -95,118 +211,132 @@ export default function QueueBoard() {
     return () => clearInterval(clockInterval);
   }, []);
 
-  const formatQueueNumber = (id) => `N-${String(id).padStart(3, '0')}`;
-
   const nowServing = queue.length > 0 ? queue[0] : null;
-  const waitingList = queue.slice(1, 6);
-
+  const waitingList = queue.slice(1);
   const currentVideo = playlist[currentIndex]?.url || '';
 
   return (
-    <div onClick={forceUnmuteAndFullscreen} className="h-screen w-screen bg-black text-white overflow-hidden flex font-sans fixed inset-0 z-50">
+    <div onClick={forceUnmuteAndFullscreen} className="h-screen w-screen bg-[#020813] font-sans flex flex-col fixed inset-0 z-50 overflow-hidden cursor-default select-none">
       
-      {/* LEFT QUEUE PANEL (Slimmer 25%) */}
-      <div className="w-[25%] h-full bg-slate-900 flex flex-col shadow-[20px_0_50px_rgba(0,0,0,0.8)] z-20 border-r border-slate-800">
+      {/* ======================================= */}
+      {/* TOP SECTION: 88% HEIGHT */}
+      {/* ======================================= */}
+      <div className="flex w-full h-[88%]">
         
-        {/* Time Header */}
-        <div className="py-6 bg-slate-950 border-b border-slate-800 flex flex-col items-center justify-center text-center shadow-lg">
-          <p className="text-amber-500 font-mono text-3xl xl:text-4xl font-bold tracking-widest drop-shadow-md">
-            {time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-          </p>
-          <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest mt-1">
-            {time.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
-        </div>
-
-        {/* Now Serving Card */}
-        <div className="flex-1 flex flex-col justify-center items-center p-6 bg-slate-900 relative">
-          <div className="absolute top-4 w-full text-center">
-             <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">CURRENTLY SERVING</h2>
-          </div>
-
-          {nowServing ? (
-            <div className="w-full bg-slate-950 border-2 border-amber-500 rounded-xl p-8 shadow-[0_0_40px_rgba(245,158,11,0.2)] text-center relative overflow-hidden transform scale-105 transition-all">
-              <div className="absolute -top-10 -right-10 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
-              
-              <p className="text-amber-500 text-[10px] font-bold uppercase tracking-widest mb-2 animate-pulse">Ticket Number</p>
-              <h3 className="text-5xl xl:text-7xl font-black text-white font-mono tracking-tighter mb-6">
-                {formatQueueNumber(nowServing.id)}
-              </h3>
-              
-              <div className="bg-slate-900 rounded-lg p-3 border border-slate-800 inline-block min-w-[80%]">
-                <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5">
-                  <Stethoscope size={10} /> Provider
-                </p>
-                <p className="text-sm font-bold text-slate-200 uppercase tracking-widest truncate">
-                  {nowServing.dentist_name || 'UNASSIGNED'}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="w-full aspect-square max-h-[300px] bg-slate-950/40 border border-slate-800 rounded-xl flex flex-col items-center justify-center opacity-40">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">QUEUE IS EMPTY</p>
-            </div>
-          )}
-        </div>
-
-        {/* Compact Next In Line */}
-        <div className="h-[35%] bg-slate-950 flex flex-col border-t border-slate-800">
-          <div className="px-6 py-3 border-b border-slate-800 bg-slate-900/50">
-            <h2 className="text-[9px] font-black text-amber-500 uppercase tracking-widest">NEXT IN LINE</h2>
-          </div>
+        {/* LEFT PANEL: Seamless Navy Gradient (Removed border-r) */}
+        <div className="w-[35%] h-full bg-gradient-to-br from-[#061428] to-[#030A16] flex flex-col px-[4vw] py-[5vh] z-10 relative overflow-hidden shadow-[20px_0_60px_rgba(0,0,0,0.4)]">
           
-          <div className="flex-1 overflow-hidden px-4 py-3 space-y-2">
-            {waitingList.length > 0 ? (
-              waitingList.map((patient, index) => (
-                <div key={patient.id} className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 flex items-center gap-4">
-                  <div className="w-12 h-12 flex-shrink-0 bg-slate-950 border border-slate-700 rounded-md flex items-center justify-center text-amber-500 font-black text-xl font-mono shadow-inner">
-                    {formatQueueNumber(patient.id)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">Scheduled</p>
-                    <p className="text-sm font-bold text-white uppercase tracking-widest">
-                      {patient.appointment_time.substring(0, 5)}
-                    </p>
-                  </div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[25vw] h-[25vw] bg-cyan-600/10 rounded-full blur-[80px] pointer-events-none"></div>
+
+          {/* Header - Anchored Top */}
+          <div className="flex-none flex flex-col items-start w-full relative z-10">
+            <h1 className="text-[3.5vw] font-bold tracking-tight text-white tabular-nums leading-none drop-shadow-md">
+              {time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+            </h1>
+            <p className="text-[1vw] font-bold uppercase tracking-[0.35em] text-cyan-400 mt-[1vh]">
+              {time.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            </p>
+          </div>
+
+          {/* Now Serving - Perfectly Centered Vertically */}
+          <div className="flex-1 flex flex-col items-start justify-center w-full relative z-10">
+            {nowServing ? (
+              <div className="animate-in fade-in duration-700 w-full">
+                
+                <div className="flex items-center gap-[1vw] mb-[2vh]">
+                  <span className="flex h-[1vw] w-[1vw] relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-[1vw] w-[1vw] bg-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.8)]"></span>
+                  </span>
+                  <p className="text-[1.2vw] font-bold uppercase tracking-[0.25em] text-cyan-200">
+                    Now Serving
+                  </p>
                 </div>
-              ))
+                
+                {/* Properly sized and perfectly aligned */}
+                <div className="text-[9vw] font-black tracking-tighter leading-none font-mono tabular-nums -ml-[0.3vw] text-transparent bg-clip-text bg-gradient-to-b from-white via-blue-50 to-cyan-200 drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
+                  {formatQueueNumber(nowServing.id)}
+                </div>
+                
+              </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center opacity-30 mt-2">
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">NO WAITING PATIENTS</p>
+              <div className="w-full opacity-60">
+                <p className="text-[2.2vw] font-bold tracking-tight text-white">Queue is empty</p>
+                <p className="text-[1vw] font-bold mt-[1vh] uppercase tracking-[0.2em] text-cyan-500">Awaiting Next Patient</p>
               </div>
             )}
           </div>
         </div>
-      </div>
 
-      {/* RIGHT VIDEO PANEL (75%) */}
-      <div className="w-[75%] h-full relative bg-black flex items-center justify-center">
-        {playlist.length > 0 ? (
-          <video 
-            ref={videoRef}
-            src={currentVideo} 
-            onEnded={handleVideoEnded}
-            className={`w-full h-full pointer-events-none ${videoFit === 'cover' ? 'object-cover' : 'object-contain'}`}
-          />
-        ) : (
-          <div className="flex flex-col items-center opacity-30">
-            <MonitorPlay size={64} className="text-slate-500 mb-4" />
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">NO MEDIA LOADED</p>
-          </div>
-        )}
-        
-        {/* Audio Unlock Overlay */}
-        {isAudioMutedByBrowser && playlist.length > 0 && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-40 backdrop-blur-sm cursor-pointer transition-opacity">
-            <div className="bg-slate-900/90 border border-amber-500 px-6 py-4 rounded-xl flex items-center gap-4 shadow-[0_0_30px_rgba(245,158,11,0.2)]">
-              <VolumeX className="text-amber-500" size={32} />
-              <div>
-                <h3 className="text-white font-black tracking-widest uppercase">Start TV Display</h3>
-                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Click anywhere to enter fullscreen and enable audio</p>
+        {/* RIGHT PANEL: MEDIA PLAYER */}
+        <div className="w-[65%] h-full bg-[#01040A] relative overflow-hidden">
+          {playlist.length > 0 ? (
+            <video 
+              ref={videoRef}
+              src={currentVideo} 
+              onEnded={handleVideoEnded}
+              className={`w-full h-full pointer-events-none ${videoFit === 'cover' ? 'object-cover' : 'object-contain'}`}
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-[#030914] shadow-inner">
+              <MonitorPlay className="text-[#0D2444] mb-[2vh] w-[5vw] h-[5vw]" />
+              <p className="text-[1.2vw] font-bold uppercase tracking-[0.4em] text-[#11315C]">Media Standby</p>
+            </div>
+          )}
+          
+          {/* Audio Unlock Overlay */}
+          {isAudioMutedByBrowser && playlist.length > 0 && (
+            <div className="absolute inset-0 bg-[#061428]/80 flex items-center justify-center z-40 transition-opacity cursor-pointer backdrop-blur-md">
+              <div className="text-center flex flex-col items-center">
+                <div className="bg-cyan-500 text-white p-[1.8vw] rounded-full animate-pulse mb-[2.5vh] shadow-[0_0_40px_rgba(34,211,238,0.5)]">
+                  <VolumeX className="w-[2.5vw] h-[2.5vw]" />
+                </div>
+                <h3 className="text-white font-bold tracking-widest uppercase text-[1.4vw] mb-[1vh]">Tap to Enable Announcer</h3>
+                <p className="text-cyan-200/70 text-[0.9vw] font-medium uppercase tracking-[0.2em]">Browser Interaction Required</p>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+      </div>
+
+      {/* ======================================= */}
+      {/* BOTTOM SECTION: 12% HEIGHT (Seamless integration, no border-t) */}
+      {/* ======================================= */}
+      <div className="h-[12%] w-full bg-[#030A16] flex items-center px-[4vw] z-20 overflow-hidden shadow-[0_-20px_50px_rgba(0,0,0,0.6)] relative z-30">
+        
+        {/* Floating Waiting List Text */}
+        <span className="text-[1.2vw] font-bold tracking-[0.3em] uppercase text-cyan-400 mr-[3vw] flex-shrink-0">
+          Waiting List
+        </span>
+
+        {/* Vertical Divider */}
+        <div className="w-[2px] h-[30%] bg-cyan-900/50 mr-[3vw] flex-shrink-0 rounded-full"></div>
+
+        {/* Elegant Pill-Shaped Queue Numbers */}
+        <div className="flex-1 flex items-center gap-[1.5vw] relative h-full">
+          {waitingList.length > 0 ? (
+            <div className="flex items-center gap-[1.5vw] animate-in fade-in duration-500 w-full">
+              {waitingList.map((patient) => (
+                <div 
+                  key={patient.id} 
+                  className="bg-[#0D2444]/40 border border-cyan-800/30 px-[1.5vw] py-[1vh] rounded-full flex items-center justify-center shadow-inner backdrop-blur-sm transition-all"
+                >
+                  <span className="text-[2vw] font-bold text-cyan-50 tracking-widest font-mono tabular-nums leading-none">
+                    {formatQueueNumber(patient.id)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-[#11315C] text-[1.1vw] font-bold uppercase tracking-[0.3em]">
+              No patients waiting
+            </div>
+          )}
+          
+          {/* Deep Fade out edge for overflow */}
+          <div className="absolute right-0 top-0 w-[15vw] h-full bg-gradient-to-l from-[#030A16] to-transparent z-10 pointer-events-none"></div>
+        </div>
+
       </div>
 
     </div>

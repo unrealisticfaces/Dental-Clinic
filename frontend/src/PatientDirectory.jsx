@@ -18,7 +18,8 @@ export default function PatientDirectory() {
     middle_name: '',
     last_name: '',
     contact_number: '',
-    address: ''
+    address: '',
+    photo: ''
   });
 
   const limit = 10;
@@ -30,7 +31,10 @@ export default function PatientDirectory() {
 
   const fetchPatients = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/patients?query=${searchQuery}&page=${currentPage}&limit=${limit}`);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`http://localhost:5000/api/patients?query=${searchQuery}&page=${currentPage}&limit=${limit}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setPatients(response.data.data || []);
       setTotalPages(response.data.pagination?.totalPages || 1);
     } catch (error) {
@@ -52,7 +56,10 @@ export default function PatientDirectory() {
   const handlePreview = async (patient) => {
     setIsLoadingPreview(true);
     try {
-      const response = await axios.get(`http://localhost:5000/api/patients/${patient.id}`);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`http://localhost:5000/api/patients/${patient.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setSelectedPatient(response.data);
     } catch (error) {
       console.error(error);
@@ -68,9 +75,21 @@ export default function PatientDirectory() {
         middle_name: selectedPatient.middle_name || '',
         last_name: selectedPatient.last_name || '',
         contact_number: selectedPatient.contact_number || '',
-        address: selectedPatient.address || ''
+        address: selectedPatient.address || '',
+        photo: selectedPatient.photo || ''
       });
       setIsEditModalOpen(true);
+    }
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditForm({ ...editForm, photo: reader.result });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -138,7 +157,8 @@ export default function PatientDirectory() {
                       onClick={() => handlePreview(patient)}
                       className={`hover:bg-blue-50 cursor-pointer transition-colors border-l-2 ${selectedPatient?.id === patient.id ? 'bg-blue-50 border-blue-500' : 'border-transparent'}`}
                     >
-                      <td className="px-4 py-2.5 font-mono text-sm font-bold tracking-wider text-blue-700 uppercase">{patient.unique_id}</td>
+                      {/* Changed unique_id from text-sm to text-[10px] to match the other columns */}
+                      <td className="px-4 py-2.5 font-mono text-[10px] font-bold tracking-wider text-blue-700 uppercase">{patient.unique_id}</td>
                       <td className="px-4 py-2.5 text-[10px] font-semibold tracking-wider text-gray-800 uppercase">{patient.first_name}</td>
                       <td className="px-4 py-2.5 text-[10px] font-semibold tracking-wider text-gray-800 uppercase">{patient.middle_name || '-'}</td>
                       <td className="px-4 py-2.5 text-[10px] font-semibold tracking-wider text-gray-800 uppercase">{patient.last_name}</td>
@@ -271,7 +291,28 @@ export default function PatientDirectory() {
               </button>
             </div>
             
-            <form onSubmit={handleEditSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleEditSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              
+              {/* Added Profile Picture Update Section */}
+              <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <div className="w-16 h-16 rounded-full overflow-hidden border border-gray-300 bg-white shrink-0">
+                  {editForm.photo ? (
+                    <img src={editForm.photo} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-full h-full p-3 text-gray-400" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Update Profile Picture</label>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleImageUpload} 
+                    className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-[10px] file:uppercase file:font-bold file:tracking-wider file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" 
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">First Name</label>

@@ -76,6 +76,11 @@ export default function Sidebar({ onLogout }) {
               COMMISSIONS
             </Link>
 
+            <Link to="/queue-manager" className={`flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${isActive('/queue-manager') ? 'bg-amber-500 text-slate-900 shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+            <Calendar size={18} className={isActive('/queue-manager') ? 'text-slate-900' : 'text-slate-400'} /> 
+            QUEUE MANAGER
+            </Link>
+
             <Link to="/tv-settings" className={`flex items-center gap-3 p-3 rounded-lg transition-all duration-200 mt-1 ${isActive('/tv-settings') ? 'bg-amber-500 text-slate-900 shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
               <Tv size={18} className={isActive('/tv-settings') ? 'text-slate-900' : 'text-slate-400'} /> 
               TV SETTINGS
