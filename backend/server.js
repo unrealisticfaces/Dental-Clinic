@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' }));
 
 const JWT_SECRET = 'dental_clinic_super_secret_key_2024';
@@ -174,12 +174,24 @@ app.post('/api/patients', authenticateToken, (req, res) => {
 
 app.put('/api/patients/:id', authenticateToken, (req, res) => {
     const { id } = req.params;
-    const { first_name, middle_name, last_name, gender, contact_number, address } = req.body;
+    const { first_name, middle_name, last_name, gender, contact_number, address, photo } = req.body;
+    
     db.query('SELECT unique_id FROM patients WHERE id = ?', [id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         const uniqueId = results[0]?.unique_id || id;
-        const sql = `UPDATE patients SET first_name = ?, middle_name = ?, last_name = ?, gender = ?, contact_number = ?, address = ? WHERE id = ?`;
-        db.query(sql, [first_name, middle_name, last_name, gender, contact_number, address, id], (err) => {
+        
+        let sql;
+        let params;
+        
+        if (photo) {
+            sql = `UPDATE patients SET first_name = ?, middle_name = ?, last_name = ?, gender = ?, contact_number = ?, address = ?, photo = ? WHERE id = ?`;
+            params = [first_name, middle_name, last_name, gender, contact_number, address, photo, id];
+        } else {
+            sql = `UPDATE patients SET first_name = ?, middle_name = ?, last_name = ?, gender = ?, contact_number = ?, address = ? WHERE id = ?`;
+            params = [first_name, middle_name, last_name, gender, contact_number, address, id];
+        }
+
+        db.query(sql, params, (err) => {
             if (err) return res.status(500).json({ error: err.message });
             logActivity('UPDATE', `Updated profile ID: ${uniqueId}`);
             res.json({ success: true });
@@ -232,7 +244,19 @@ app.get('/api/patients/:id', authenticateToken, (req, res) => {
 
 app.get('/api/patients/:id/history', authenticateToken, (req, res) => {
     const { id } = req.params;
-    const sql = `SELECT t.id, t.amount_paid, t.transaction_date, p.name as procedure_name FROM transactions t JOIN procedures p ON t.procedure_id = p.id WHERE t.patient_id = ? ORDER BY t.transaction_date DESC`;
+    const sql = `
+        SELECT 
+            t.id, 
+            t.amount_paid, 
+            t.transaction_date, 
+            p.name as procedure_name,
+            d.name as dentist_name
+        FROM transactions t 
+        JOIN procedures p ON t.procedure_id = p.id 
+        LEFT JOIN dentists d ON t.dentist_id = d.id
+        WHERE t.patient_id = ? 
+        ORDER BY t.transaction_date DESC
+    `;
     db.query(sql, [id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
@@ -409,5 +433,42 @@ app.put('/api/appointments/:id/status', authenticateToken, (req, res) => {
     });
 });
 
-const PORT = 5000;
-app.listen(PORT, () => {});
+app.post('/api/kiosk/ticket', (req, res) => {
+    const { purpose } = req.body;
+    
+    db.query("SELECT id FROM patients WHERE first_name = 'Walk-In' AND last_name = 'Patient' LIMIT 1", (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        const insertAppointment = (patientId) => {
+            const sql = `INSERT INTO appointments (patient_id, dentist_id, appointment_date, appointment_time, reason, status) 
+                         VALUES (?, NULL, CURDATE(), CURTIME(), ?, 'Scheduled')`;
+                         
+            db.query(sql, [patientId, purpose], (err, result) => {
+                if (err) return res.status(500).json({ error: err.message });
+                db.query('INSERT INTO activity_logs (action) VALUES (?)', [`KIOSK|Generated Walk-In Ticket for ${purpose}`]);
+                
+                res.json({ success: true, ticketId: result.insertId });
+            });
+        };
+
+        if (results.length > 0) {
+            insertAppointment(results[0].id);
+        } else {
+            const year = new Date().getFullYear().toString().slice(-2);
+            db.query(`SELECT COUNT(*) as count FROM patients WHERE unique_id LIKE 'W${year}%'`, (err, countResult) => {
+                const nextNumber = (countResult[0].count + 1).toString().padStart(3, '0');
+                const uniqueId = `W${year}${nextNumber}`;
+                
+                db.query("INSERT INTO patients (unique_id, first_name, last_name) VALUES (?, 'Walk-In', 'Patient')", [uniqueId], (err, insertRes) => {
+                    if (err) return res.status(500).json({ error: err.message });
+                    insertAppointment(insertRes.insertId);
+                });
+            });
+        }
+    });
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on network port ${PORT}`);
+});
