@@ -17,7 +17,7 @@ export default function Login({ onLogin }) {
     setIsLoading(true); // Now this works
     try {
       // Send credentials to the secure backend
-      const response = await axios.post('http://localhost:5000/api/login', credentials);
+      const response = await axios.post('/api/login', credentials);
       
       if (response.data.success) {
         // IMPORTANT: Save the secure JWT token to the browser
