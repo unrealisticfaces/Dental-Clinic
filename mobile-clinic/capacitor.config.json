@@ -1,0 +1,9 @@
+{
+  "appId": "com.fano.clinic",
+  "appName": "MobileClinic",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "cleartext": true
+  }
+}
