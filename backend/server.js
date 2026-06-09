@@ -42,7 +42,7 @@ app.post('/api/login', (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(401).json({ success: false });
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '8h' });
-        logActivity('AUTH', `User logged in: ${username}`);
+        logActivity('AUTH', `${username}`);
         res.json({ success: true, user: user.username, role: user.role, token });
     });
 });
@@ -154,7 +154,7 @@ app.post('/api/patients', authenticateToken, (req, res) => {
         if (checkResults.length > 0) {
             return res.status(409).json({
                 success: false,
-                message: `Duplicated record blocked: Patient name ${firstName} ${lastName} is already registered.`
+                message: `${firstName} ${lastName}`
             });
         }
         const year = new Date().getFullYear().toString().slice(-2);
@@ -165,7 +165,7 @@ app.post('/api/patients', authenticateToken, (req, res) => {
             const sql = `INSERT INTO patients (unique_id, first_name, middle_name, last_name, age, gender, contact_number, address, photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
             db.query(sql, [uniqueId, firstName, middleName, lastName, age, gender, phone, address, photo], (err) => {
                 if (err) return res.status(500).json({ error: err.message });
-                logActivity('REGISTRATION', `Registered profile ID: ${uniqueId}`);
+                logActivity('REGISTRATION', `${uniqueId}`);
                 res.json({ success: true, uniqueId });
             });
         });
@@ -193,7 +193,7 @@ app.put('/api/patients/:id', authenticateToken, (req, res) => {
 
         db.query(sql, params, (err) => {
             if (err) return res.status(500).json({ error: err.message });
-            logActivity('UPDATE', `Updated profile ID: ${uniqueId}`);
+            logActivity('UPDATE', `${uniqueId}`);
             res.json({ success: true });
         });
     });
@@ -278,7 +278,7 @@ app.post('/api/patients/:id/chart', authenticateToken, (req, res) => {
     const sql = `INSERT INTO dental_charts (patient_id, tooth_number, condition_name, notes) VALUES (?, ?, ?, ?)`;
     db.query(sql, [id, tooth_number, condition_name, notes], (err, result) => {
         if (err) return res.status(500).json({ error: err.message });
-        logActivity('CLINICAL', `Updated chart for patient ID: ${id}`);
+        logActivity('CLINICAL', `${id}`);
         res.json({ success: true, chartId: result.insertId });
     });
 });
@@ -363,7 +363,7 @@ app.post('/api/transactions', authenticateToken, (req, res) => {
         const detail = results[0];
         db.query('INSERT INTO transactions (patient_id, procedure_id, dentist_id, amount_paid, transaction_date) VALUES (?, ?, ?, ?, NOW())', [patient_id, procedure_id, dentist_id, amount_paid], (err, result) => {
             if (err) return res.status(500).json({ error: err.message });
-            if (detail) logActivity('PAYMENT', `Settled PHP ${amount_paid} by ${detail.unique_id} for ${detail.procedure_name}`);
+            if (detail) logActivity('PAYMENT', `${amount_paid}`);
             res.json({ success: true, transactionId: result.insertId });
         });
     });
@@ -419,7 +419,7 @@ app.post('/api/appointments', authenticateToken, (req, res) => {
         const sql = `INSERT INTO appointments (patient_id, dentist_id, appointment_date, appointment_time, reason) VALUES (?, ?, ?, ?, ?)`;
         db.query(sql, [patient_id, dentist_id, appointment_date, appointment_time, reason], (err, result) => {
             if (err) return res.status(500).json({ error: err.message });
-            logActivity('APPOINTMENT', `Scheduled appointment for ${patientStr}`);
+            logActivity('APPOINTMENT', `${patientStr}`);
             res.json({ success: true, appointmentId: result.insertId });
         });
     });
@@ -445,7 +445,7 @@ app.post('/api/kiosk/ticket', (req, res) => {
                          
             db.query(sql, [patientId, purpose], (err, result) => {
                 if (err) return res.status(500).json({ error: err.message });
-                db.query('INSERT INTO activity_logs (action) VALUES (?)', [`KIOSK|Generated Walk-In Ticket for ${purpose}`]);
+                db.query('INSERT INTO activity_logs (action) VALUES (?)', [`KIOSK|${purpose}`]);
                 
                 res.json({ success: true, ticketId: result.insertId });
             });
