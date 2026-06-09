@@ -7,14 +7,13 @@ export default function QueueManager() {
   const [queue, setQueue] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // State for the Confirmation Modal
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [patientToCall, setPatientToCall] = useState(null);
 
   const fetchQueue = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:5000/api/queue/today', {
+      const res = await axios.get('/api/queue/today', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setQueue(res.data);
@@ -33,19 +32,17 @@ export default function QueueManager() {
 
   const formatQueueNumber = (id) => `N-${String(id).padStart(3, '0')}`;
 
-  // Open the confirmation modal instead of calling immediately
   const initiateCallNext = (patient) => {
     setPatientToCall(patient);
     setIsConfirmOpen(true);
   };
 
-  // The actual execution function
   const confirmCallNext = async () => {
     try {
       const token = localStorage.getItem('token');
       
       if (patientToCall) {
-        await axios.put(`http://localhost:5000/api/appointments/${patientToCall.id}/status`, 
+        await axios.put(`/api/appointments/${patientToCall.id}/status`, 
           { status: 'Completed' }, 
           { headers: { Authorization: `Bearer ${token}` }}
         );
@@ -95,7 +92,6 @@ export default function QueueManager() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* CURRENTLY SERVING CONTROL */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full">
             <div className="p-5 border-b border-gray-100 bg-gray-50">
@@ -135,7 +131,6 @@ export default function QueueManager() {
           </div>
         </div>
 
-        {/* WAITING LIST */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden h-full flex flex-col">
             <div className="p-5 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
@@ -180,7 +175,6 @@ export default function QueueManager() {
         </div>
       </div>
 
-      {/* CONFIRMATION MODAL */}
       {isConfirmOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 duration-200">

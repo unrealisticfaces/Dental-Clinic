@@ -7,14 +7,13 @@ export default function TabletQueueManager() {
   const [queue, setQueue] = useState([]);
   const [time, setTime] = useState(new Date());
   
-  // Modal State
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [patientToCall, setPatientToCall] = useState(null);
 
   const fetchQueue = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:5000/api/queue/today', {
+      const res = await axios.get('/api/queue/today', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setQueue(res.data);
@@ -25,7 +24,6 @@ export default function TabletQueueManager() {
 
   useEffect(() => {
     fetchQueue();
-    // Fast polling so the tablet is always instantly up-to-date
     const interval = setInterval(fetchQueue, 3000); 
     return () => clearInterval(interval);
   }, []);
@@ -47,13 +45,12 @@ export default function TabletQueueManager() {
       const token = localStorage.getItem('token');
       
       if (patientToCall) {
-        await axios.put(`http://localhost:5000/api/appointments/${patientToCall.id}/status`, 
+        await axios.put(`/api/appointments/${patientToCall.id}/status`, 
           { status: 'Completed' }, 
           { headers: { Authorization: `Bearer ${token}` }}
         );
       }
 
-      // Tell the TV to instantly fetch the new queue and announce it
       localStorage.setItem('tv_chime_trigger', Date.now().toString());
       toast.success('Called next patient!');
       
@@ -76,10 +73,6 @@ export default function TabletQueueManager() {
 
   return (
     <div className="h-screen w-screen bg-slate-50 flex flex-col font-sans fixed inset-0 z-50 select-none overflow-hidden touch-manipulation">
-      
-      {/* ======================================= */}
-      {/* HEADER (Native App Style) */}
-      {/* ======================================= */}
       <div className="h-24 bg-white border-b border-slate-200 px-8 flex items-center justify-between shadow-sm shrink-0 z-20">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center shadow-md">
@@ -107,20 +100,11 @@ export default function TabletQueueManager() {
         </div>
       </div>
 
-      {/* ======================================= */}
-      {/* MAIN WORKSPACE (Split View) */}
-      {/* ======================================= */}
       <div className="flex-1 flex gap-8 p-8 overflow-hidden relative">
-        
-        {/* Soft Background Glows (Like the Kiosk) */}
         <div className="absolute top-0 left-0 w-full h-[500px] bg-blue-400/5 rounded-full blur-[100px] pointer-events-none"></div>
 
-        {/* LEFT COLUMN: ACTIVE CONTROL (40%) */}
         <div className="w-[40%] flex flex-col gap-6 z-10">
-          
-          {/* Now Serving Card */}
           <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 flex-1 flex flex-col items-center justify-center p-10 relative overflow-hidden">
-            
             <div className="bg-blue-50 text-blue-600 px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest mb-8 flex items-center gap-2">
               <UserCheck size={18} /> In The Chair
             </div>
@@ -151,7 +135,6 @@ export default function TabletQueueManager() {
             )}
           </div>
 
-          {/* MASSIVE FAT-FINGER ACTION BUTTON */}
           <button 
             disabled={!nowServing}
             onClick={() => initiateCallNext(nowServing)}
@@ -164,9 +147,7 @@ export default function TabletQueueManager() {
           </button>
         </div>
 
-        {/* RIGHT COLUMN: WAITING LIST (60%) */}
         <div className="flex-1 bg-white rounded-[2.5rem] shadow-xl border border-slate-100 flex flex-col overflow-hidden z-10">
-          
           <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
             <h3 className="text-xl font-black tracking-widest text-slate-800 uppercase">Waiting List</h3>
             <div className="bg-blue-100 text-blue-700 text-sm font-bold px-5 py-2 rounded-full uppercase tracking-widest">
@@ -174,7 +155,6 @@ export default function TabletQueueManager() {
             </div>
           </div>
 
-          {/* Scrollable Area (Hardware Accelerated for Tablet) */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4 webkit-overflow-scrolling-touch">
             {waitingList.length > 0 ? (
               waitingList.map((patient) => (
@@ -213,16 +193,11 @@ export default function TabletQueueManager() {
             )}
           </div>
         </div>
-
       </div>
 
-      {/* ======================================= */}
-      {/* TABLET OPTIMIZED CONFIRMATION MODAL */}
-      {/* ======================================= */}
       {isConfirmOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-6">
           <div className="bg-white rounded-[3rem] shadow-2xl max-w-2xl w-full overflow-hidden animate-in zoom-in-95 duration-200">
-            
             <div className="p-12 text-center">
               <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-8 border-[6px] border-amber-50">
                 <AlertTriangle size={40} className="text-amber-500" />
@@ -248,11 +223,9 @@ export default function TabletQueueManager() {
                 </button>
               </div>
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }
