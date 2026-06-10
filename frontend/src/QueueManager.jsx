@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Users, UserCheck, BellRing, CheckCircle2, Clock, ArrowRight, AlertTriangle, X } from 'lucide-react';
+import { Users, UserCheck, BellRing, CheckCircle2, Clock, ArrowRight, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 export default function QueueManager() {
@@ -13,12 +13,11 @@ export default function QueueManager() {
   const fetchQueue = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('/api/queue/today', {
+      const res = await axios.get(`/api/queue/today?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setQueue(res.data);
     } catch (error) {
-      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -48,7 +47,6 @@ export default function QueueManager() {
         );
       }
 
-      localStorage.setItem('tv_chime_trigger', Date.now().toString());
       toast.success('Called next patient!');
       
       setIsConfirmOpen(false);
@@ -60,9 +58,13 @@ export default function QueueManager() {
     }
   };
 
-  const manuallyRingBell = () => {
-    localStorage.setItem('tv_chime_trigger', Date.now().toString());
-    toast.info('Voice announcer sent to TV!');
+  const manuallyRingBell = async () => {
+    try {
+      await axios.post('/api/chime');
+      toast.info('Voice announcer sent to TV!');
+    } catch (error) {
+      toast.error('Failed to ping TV');
+    }
   };
 
   const nowServing = queue.length > 0 ? queue[0] : null;

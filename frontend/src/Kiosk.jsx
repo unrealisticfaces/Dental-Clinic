@@ -30,19 +30,16 @@ export default function Kiosk() {
     setStep('processing');
     
     try {
-      // Hit the real backend database!
-      const response = await axios.post('http://localhost:5000/api/kiosk/ticket', {
+      const response = await axios.post('/api/kiosk/ticket', {
         purpose: purpose.label
       });
       
       if (response.data.success) {
         const realId = response.data.ticketId;
         
-        // Format exactly like the TV Queue Board (N-001)
         setTicketNumber(`N-${String(realId).padStart(3, '0')}`);
         setStep('success');
         
-        // Auto-reset back to welcome screen after 6 seconds
         setTimeout(() => {
           setStep('welcome');
           setTicketNumber(null);
@@ -50,7 +47,7 @@ export default function Kiosk() {
         }, 6000);
       }
     } catch (error) {
-      console.error("Error generating ticket:", error);
+      console.error(error);
       alert("Database connection failed. Is the server running?");
       setStep('welcome');
     }
@@ -59,7 +56,6 @@ export default function Kiosk() {
   return (
     <div className="h-screen w-screen bg-slate-50 flex flex-col font-sans fixed inset-0 z-50 select-none overflow-hidden">
       
-      {/* HEADER */}
       <div className="h-24 bg-white border-b border-slate-200 px-10 flex items-center justify-between shadow-sm shrink-0 relative z-20">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-md">
@@ -81,11 +77,9 @@ export default function Kiosk() {
         </div>
       </div>
 
-      {/* MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col items-center justify-center relative p-10">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-400/10 rounded-full blur-[100px] pointer-events-none"></div>
 
-        {/* STEP 1: WELCOME SCREEN */}
         {step === 'welcome' && (
           <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500 z-10 w-full max-w-4xl cursor-pointer" onClick={() => setStep('purpose')}>
             <div className="bg-white p-6 rounded-full shadow-[0_10px_40px_rgba(37,99,235,0.1)] mb-10 border border-slate-100">
@@ -108,7 +102,6 @@ export default function Kiosk() {
           </div>
         )}
 
-        {/* STEP 2: CHOOSE PURPOSE */}
         {step === 'purpose' && (
           <div className="flex flex-col items-center w-full max-w-5xl animate-in slide-in-from-right-10 duration-300 z-10">
             <div className="w-full flex items-center justify-between mb-10">
@@ -145,7 +138,6 @@ export default function Kiosk() {
           </div>
         )}
 
-        {/* STEP 3: PROCESSING */}
         {step === 'processing' && (
           <div className="flex flex-col items-center text-center animate-in fade-in duration-300 z-10">
             <div className="relative mb-10">
@@ -159,7 +151,6 @@ export default function Kiosk() {
           </div>
         )}
 
-        {/* STEP 4: SUCCESS TICKET */}
         {step === 'success' && (
           <div className="flex flex-col items-center text-center animate-in slide-in-from-bottom-10 duration-500 z-10">
             <CheckCircle size={100} className="text-green-500 mb-8 drop-shadow-lg" />
@@ -171,7 +162,6 @@ export default function Kiosk() {
               Please take a screenshot or remember your number.
             </p>
 
-            {/* Simulated Printed Ticket */}
             <div className="bg-white rounded-3xl p-10 shadow-[0_20px_60px_rgba(0,0,0,0.08)] border border-slate-200 relative w-[450px]">
               <div className="absolute -left-6 top-[65%] -translate-y-1/2 w-12 h-12 bg-slate-50 rounded-full border-r border-slate-200"></div>
               <div className="absolute -right-6 top-[65%] -translate-y-1/2 w-12 h-12 bg-slate-50 rounded-full border-l border-slate-200"></div>

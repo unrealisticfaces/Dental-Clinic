@@ -12,14 +12,9 @@ export default function TabletQueueManager() {
 
   const fetchQueue = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get('/api/queue/today', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await axios.get(`/api/queue/today?t=${Date.now()}`);
       setQueue(res.data);
-    } catch (error) {
-      console.error(error);
-    }
+    } catch (error) {}
   };
 
   useEffect(() => {
@@ -42,30 +37,28 @@ export default function TabletQueueManager() {
 
   const confirmCallNext = async () => {
     try {
-      const token = localStorage.getItem('token');
-      
       if (patientToCall) {
-        await axios.put(`/api/appointments/${patientToCall.id}/status`, 
-          { status: 'Completed' }, 
-          { headers: { Authorization: `Bearer ${token}` }}
-        );
+        await axios.put(`/api/appointments/${patientToCall.id}/status`, { status: 'Completed' });
       }
 
-      localStorage.setItem('tv_chime_trigger', Date.now().toString());
       toast.success('Called next patient!');
       
       setIsConfirmOpen(false);
       setPatientToCall(null);
       fetchQueue();
     } catch (error) {
-      toast.error('Failed to update database');
+      toast.error('Network block. Retrying...');
       setIsConfirmOpen(false);
     }
   };
 
-  const manuallyRingBell = () => {
-    localStorage.setItem('tv_chime_trigger', Date.now().toString());
-    toast.info('Voice announcer triggered!');
+  const manuallyRingBell = async () => {
+    try {
+      await axios.post('/api/chime');
+      toast.info('TV Announcer Triggered!');
+    } catch (error) {
+      toast.error('Failed to trigger TV.');
+    }
   };
 
   const nowServing = queue.length > 0 ? queue[0] : null;

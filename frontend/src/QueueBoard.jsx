@@ -5,23 +5,21 @@ import { VolumeX, MonitorPlay } from 'lucide-react';
 export default function QueueBoard() {
   const [queue, setQueue] = useState([]);
   const [time, setTime] = useState(new Date());
-  
   const [playlist, setPlaylist] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(100);
   const [videoFit, setVideoFit] = useState('cover'); 
-  
   const [isAudioMutedByBrowser, setIsAudioMutedByBrowser] = useState(true);
-  const videoRef = useRef(null);
   
+  const videoRef = useRef(null);
   const previousServingId = useRef(null);
   const currentTicketRef = useRef(null);
   const lastAnnounceTime = useRef(0);
+  const lastChimeRef = useRef(Date.now());
 
   const formatQueueNumber = (id) => `N-${String(id).padStart(3, '0')}`;
 
-  // Pre-load voices 
   useEffect(() => {
     const loadVoices = () => window.speechSynthesis.getVoices();
     loadVoices();
@@ -30,7 +28,6 @@ export default function QueueBoard() {
     }
   }, []);
 
-  // 1. Synthesize the "Ding-Dong" Chime
   const playChime = () => {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -55,16 +52,12 @@ export default function QueueBoard() {
 
       playTone(659.25, 0, 1.0);    
       playTone(523.25, 0.5, 1.5);  
-    } catch (e) {
-      console.log("Audio not supported or unlocked yet.");
-    }
+    } catch (e) {}
   };
 
-  // 2. Announce Ticket
   const announceTicket = useCallback((id, force = false) => {
     if (!id || !('speechSynthesis' in window)) return;
     
-    // Anti-Double-Call Guard
     const now = Date.now();
     if (!force && now - lastAnnounceTime.current < 4000) return;
     lastAnnounceTime.current = now;
@@ -74,7 +67,6 @@ export default function QueueBoard() {
     setTimeout(() => {
       const formattedNumber = formatQueueNumber(id);
       const spelledOut = formattedNumber.replace('-', '. ').split('').join('. ');
-      
       const utterance = new SpeechSynthesisUtterance(`Now serving ticket number. ${spelledOut}.`);
       
       const voices = window.speechSynthesis.getVoices();
@@ -82,7 +74,6 @@ export default function QueueBoard() {
       if (!bestVoice) bestVoice = voices.find(v => v.name.includes('Male') || v.name.includes('David') || v.name.includes('Daniel'));
       
       if (bestVoice) utterance.voice = bestVoice;
-
       utterance.rate = 0.8; 
       utterance.pitch = 0.9; 
       
@@ -91,27 +82,12 @@ export default function QueueBoard() {
     }, 1500); 
   }, []);
 
-  // Sync state from remote control
   const syncState = (e) => {
     if (!e || e.key === 'tv_playlist') setPlaylist(JSON.parse(localStorage.getItem('tv_playlist') || '[]'));
     if (!e || e.key === 'tv_currentIndex') setCurrentIndex(Number(localStorage.getItem('tv_currentIndex')) || 0);
     if (!e || e.key === 'tv_isPlaying') setIsPlaying(localStorage.getItem('tv_isPlaying') === 'true');
     if (!e || e.key === 'tv_volume') setVolume(Number(localStorage.getItem('tv_volume')) || 100);
     if (!e || e.key === 'tv_videoFit') setVideoFit(localStorage.getItem('tv_videoFit') || 'cover');
-    
-    if (e && e.key === 'tv_chime_trigger') {
-      const token = localStorage.getItem('token');
-      axios.get('http://localhost:5000/api/queue/today', { headers: { Authorization: `Bearer ${token}` } })
-        .then(res => {
-          if (res.data.length > 0) {
-            const freshId = res.data[0].id;
-            currentTicketRef.current = freshId;
-            previousServingId.current = freshId; 
-            setQueue(res.data);
-            announceTicket(freshId, true); 
-          }
-        }).catch(err => console.log(err));
-    }
   };
 
   useEffect(() => {
@@ -120,7 +96,6 @@ export default function QueueBoard() {
     return () => window.removeEventListener('storage', syncState);
   }, []);
 
-  // Handle Playback Engine
   useEffect(() => {
     if (!videoRef.current || playlist.length === 0) return;
     videoRef.current.volume = volume / 100;
@@ -176,36 +151,43 @@ export default function QueueBoard() {
     }
   };
 
-  // Regular Background Polling
   useEffect(() => {
     const fetchQueue = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get('http://localhost:5000/api/queue/today', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const [queueRes, chimeRes] = await Promise.all([
+          axios.get(`/api/queue/today?t=${Date.now()}`),
+          axios.get(`/api/chime?t=${Date.now()}`)
+        ]);
+
+        const freshQueue = queueRes.data;
+        const serverChime = chimeRes.data.trigger;
         
-        if (res.data.length > 0) {
-          const currentId = res.data[0].id;
+        if (freshQueue.length > 0) {
+          const currentId = freshQueue[0].id;
+          
           if (previousServingId.current !== null && previousServingId.current !== currentId) {
             announceTicket(currentId);
+          } else if (serverChime > lastChimeRef.current) {
+            announceTicket(currentId, true);
           }
+          
           previousServingId.current = currentId;
           currentTicketRef.current = currentId;
         } else {
           previousServingId.current = null;
           currentTicketRef.current = null;
         }
-        setQueue(res.data);
+        
+        lastChimeRef.current = serverChime;
+        setQueue(freshQueue);
       } catch (err) {}
     };
     
     fetchQueue();
-    const interval = setInterval(fetchQueue, 5000); 
+    const interval = setInterval(fetchQueue, 1500); 
     return () => clearInterval(interval);
   }, [announceTicket]);
 
-  // Clock
   useEffect(() => {
     const clockInterval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(clockInterval);
@@ -217,18 +199,10 @@ export default function QueueBoard() {
 
   return (
     <div onClick={forceUnmuteAndFullscreen} className="h-screen w-screen bg-[#020813] font-sans flex flex-col fixed inset-0 z-50 overflow-hidden cursor-default select-none">
-      
-      {/* ======================================= */}
-      {/* TOP SECTION: 88% HEIGHT */}
-      {/* ======================================= */}
       <div className="flex w-full h-[88%]">
-        
-        {/* LEFT PANEL: Seamless Navy Gradient (Removed border-r) */}
         <div className="w-[35%] h-full bg-gradient-to-br from-[#061428] to-[#030A16] flex flex-col px-[4vw] py-[5vh] z-10 relative overflow-hidden shadow-[20px_0_60px_rgba(0,0,0,0.4)]">
-          
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[25vw] h-[25vw] bg-cyan-600/10 rounded-full blur-[80px] pointer-events-none"></div>
 
-          {/* Header - Anchored Top */}
           <div className="flex-none flex flex-col items-start w-full relative z-10">
             <h1 className="text-[3.5vw] font-bold tracking-tight text-white tabular-nums leading-none drop-shadow-md">
               {time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
@@ -238,7 +212,6 @@ export default function QueueBoard() {
             </p>
           </div>
 
-          {/* Now Serving - Perfectly Centered Vertically */}
           <div className="flex-1 flex flex-col items-start justify-center w-full relative z-10">
             {nowServing ? (
               <div className="animate-in fade-in duration-700 w-full">
@@ -253,7 +226,6 @@ export default function QueueBoard() {
                   </p>
                 </div>
                 
-                {/* Properly sized and perfectly aligned */}
                 <div className="text-[9vw] font-black tracking-tighter leading-none font-mono tabular-nums -ml-[0.3vw] text-transparent bg-clip-text bg-gradient-to-b from-white via-blue-50 to-cyan-200 drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
                   {formatQueueNumber(nowServing.id)}
                 </div>
@@ -268,7 +240,6 @@ export default function QueueBoard() {
           </div>
         </div>
 
-        {/* RIGHT PANEL: MEDIA PLAYER */}
         <div className="w-[65%] h-full bg-[#01040A] relative overflow-hidden">
           {playlist.length > 0 ? (
             <video 
@@ -284,7 +255,6 @@ export default function QueueBoard() {
             </div>
           )}
           
-          {/* Audio Unlock Overlay */}
           {isAudioMutedByBrowser && playlist.length > 0 && (
             <div className="absolute inset-0 bg-[#061428]/80 flex items-center justify-center z-40 transition-opacity cursor-pointer backdrop-blur-md">
               <div className="text-center flex flex-col items-center">
@@ -299,20 +269,14 @@ export default function QueueBoard() {
         </div>
       </div>
 
-      {/* ======================================= */}
-      {/* BOTTOM SECTION: 12% HEIGHT (Seamless integration, no border-t) */}
-      {/* ======================================= */}
       <div className="h-[12%] w-full bg-[#030A16] flex items-center px-[4vw] z-20 overflow-hidden shadow-[0_-20px_50px_rgba(0,0,0,0.6)] relative z-30">
         
-        {/* Floating Waiting List Text */}
         <span className="text-[1.2vw] font-bold tracking-[0.3em] uppercase text-cyan-400 mr-[3vw] flex-shrink-0">
           Waiting List
         </span>
 
-        {/* Vertical Divider */}
         <div className="w-[2px] h-[30%] bg-cyan-900/50 mr-[3vw] flex-shrink-0 rounded-full"></div>
 
-        {/* Elegant Pill-Shaped Queue Numbers */}
         <div className="flex-1 flex items-center gap-[1.5vw] relative h-full">
           {waitingList.length > 0 ? (
             <div className="flex items-center gap-[1.5vw] animate-in fade-in duration-500 w-full">
@@ -333,7 +297,6 @@ export default function QueueBoard() {
             </div>
           )}
           
-          {/* Deep Fade out edge for overflow */}
           <div className="absolute right-0 top-0 w-[15vw] h-full bg-gradient-to-l from-[#030A16] to-transparent z-10 pointer-events-none"></div>
         </div>
 
