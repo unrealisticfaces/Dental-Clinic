@@ -5,7 +5,8 @@ import 'react-toastify/dist/ReactToastify.css';
 import Kiosk from './Kiosk';
 import TabletQueueManager from './TabletQueueManager';
 
-axios.defaults.baseURL = 'http://192.168.1.250:5000';
+const serverIP = window.location.hostname;
+axios.defaults.baseURL = `http://${serverIP}:5000`;
 
 function Home() {
   return (

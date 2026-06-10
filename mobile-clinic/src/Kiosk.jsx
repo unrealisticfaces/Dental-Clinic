@@ -47,7 +47,6 @@ export default function Kiosk() {
         }, 6000);
       }
     } catch (error) {
-      console.error(error);
       alert("Database connection failed. Is the server running?");
       setStep('welcome');
     }
