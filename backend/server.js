@@ -5,7 +5,13 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const app = express();
-app.use(cors({ origin: '*' }));
+
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json({ limit: '10mb' }));
 
 const JWT_SECRET = 'dental_clinic_super_secret_key_2024';
@@ -15,6 +21,21 @@ const db = mysql.createPool({
     user: 'root',
     password: 'root',
     database: 'dental_clinic'
+});
+
+db.on('error', (err) => {
+    console.error('Database pool error:', err);
+});
+
+let globalChime = Date.now();
+
+app.post('/api/chime', (req, res) => {
+    globalChime = Date.now();
+    res.json({ success: true });
+});
+
+app.get('/api/chime', (req, res) => {
+    res.json({ trigger: globalChime });
 });
 
 const logActivity = (event, description) => {
@@ -395,7 +416,7 @@ app.get('/api/appointments', authenticateToken, (req, res) => {
     });
 });
 
-app.get('/api/queue/today', authenticateToken, (req, res) => {
+app.get('/api/queue/today', (req, res) => {
     const sql = `
         SELECT a.id, a.appointment_time, p.first_name, p.last_name, d.name as dentist_name, a.reason
         FROM appointments a 
@@ -446,7 +467,6 @@ app.post('/api/kiosk/ticket', (req, res) => {
             db.query(sql, [patientId, purpose], (err, result) => {
                 if (err) return res.status(500).json({ error: err.message });
                 db.query('INSERT INTO activity_logs (action) VALUES (?)', [`KIOSK|${purpose}`]);
-                
                 res.json({ success: true, ticketId: result.insertId });
             });
         };
@@ -458,8 +478,10 @@ app.post('/api/kiosk/ticket', (req, res) => {
             db.query(`SELECT COUNT(*) as count FROM patients WHERE unique_id LIKE 'W${year}%'`, (err, countResult) => {
                 const nextNumber = (countResult[0].count + 1).toString().padStart(3, '0');
                 const uniqueId = `W${year}${nextNumber}`;
+                const insertSql = `INSERT INTO patients (unique_id, first_name, middle_name, last_name, age, gender, contact_number, address) 
+                                   VALUES (?, 'Walk-In', '', 'Patient', 0, 'Other', '00000000000', 'Walk-in Kiosk')`;
                 
-                db.query("INSERT INTO patients (unique_id, first_name, last_name) VALUES (?, 'Walk-In', 'Patient')", [uniqueId], (err, insertRes) => {
+                db.query(insertSql, [uniqueId], (err, insertRes) => {
                     if (err) return res.status(500).json({ error: err.message });
                     insertAppointment(insertRes.insertId);
                 });
@@ -470,5 +492,4 @@ app.post('/api/kiosk/ticket', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on network port ${PORT}`);
 });
