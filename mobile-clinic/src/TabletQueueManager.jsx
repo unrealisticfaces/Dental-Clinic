@@ -65,7 +65,7 @@ export default function TabletQueueManager() {
   const waitingList = queue.slice(1);
 
   return (
-    <div className="h-screen w-screen bg-slate-100 flex flex-col font-sans fixed inset-0 z-50 select-none overflow-hidden touch-manipulation">
+    <div className="h-screen w-screen bg-slate-50 flex flex-col font-sans fixed inset-0 z-50 select-none overflow-hidden touch-manipulation text-slate-900">
       <div className="h-20 bg-white border-b border-slate-200 px-8 flex items-center justify-between shadow-sm shrink-0 z-20">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-md">
@@ -153,7 +153,7 @@ export default function TabletQueueManager() {
               waitingList.map((patient) => (
                 <div 
                   key={patient.id} 
-                  className="bg-white hover:bg-blue-50/50 border-2 border-slate-100 rounded-2xl p-5 flex items-center gap-6 transition-colors"
+                  className="bg-white hover:bg-blue-50 border-2 border-slate-100 rounded-2xl p-5 flex items-center gap-6 transition-colors"
                 >
                   <div className="w-20 h-20 bg-slate-50 rounded-xl flex flex-col items-center justify-center flex-shrink-0 border border-slate-200">
                     <span className="text-2xl font-black text-slate-900 font-mono tracking-tighter">

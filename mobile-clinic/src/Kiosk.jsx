@@ -9,6 +9,7 @@ export default function Kiosk() {
   const [step, setStep] = useState('welcome');
   const [ticketNumber, setTicketNumber] = useState(null);
   const [selectedPurpose, setSelectedPurpose] = useState('');
+  const [accountInput, setAccountInput] = useState('');
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -25,13 +26,19 @@ export default function Kiosk() {
     { id: 'other', label: 'Other / Inquiries', icon: MoreHorizontal },
   ];
 
-  const handleSelectPurpose = async (purpose) => {
-    setSelectedPurpose(purpose.label);
+  const handleSelectPurpose = (purpose) => {
+    setSelectedPurpose(purpose);
+    setStep('identify');
+  };
+
+  const processTicket = async (isGuest) => {
+    if (!isGuest && !accountInput.trim()) return;
     setStep('processing');
     
     try {
       const response = await axios.post('http://192.168.1.250:5000/api/kiosk/ticket', {
-        purpose: purpose.label
+        purpose: selectedPurpose.label,
+        accountId: isGuest ? null : accountInput.trim()
       });
       
       if (response.data.success) {
@@ -44,7 +51,11 @@ export default function Kiosk() {
           setStep('welcome');
           setTicketNumber(null);
           setSelectedPurpose('');
+          setAccountInput('');
         }, 6000);
+      } else {
+        alert(response.data.message || "Account not found. Please check your ID or tap Skip/Guest.");
+        setStep('identify');
       }
     } catch (error) {
       alert("Database connection failed. Is the server running?");
@@ -53,7 +64,7 @@ export default function Kiosk() {
   };
 
   return (
-    <div className="h-screen w-screen bg-slate-100 flex flex-col font-sans fixed inset-0 z-50 select-none overflow-hidden touch-manipulation">
+    <div className="h-screen w-screen bg-slate-50 flex flex-col font-sans fixed inset-0 z-50 select-none overflow-hidden touch-manipulation">
       
       <div className="h-20 bg-white border-b border-slate-200 px-10 flex items-center justify-between shadow-sm shrink-0 relative z-20">
         <div className="flex items-center gap-4">
@@ -141,53 +152,101 @@ export default function Kiosk() {
           </div>
         )}
 
-        {step === 'processing' && (
-          <div className="flex flex-col items-center text-center animate-in fade-in duration-300 z-10">
-            <div className="relative mb-10">
-              <div className="w-28 h-28 border-8 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Printer className="text-blue-600" size={32} />
+        {step === 'identify' && (
+          <div className="flex flex-col items-center justify-center w-full max-w-3xl h-full animate-in slide-in-from-right-10 duration-300 z-10 pb-12">
+            <div className="w-full flex items-center justify-between mb-8 shrink-0">
+              <button 
+                onClick={() => setStep('purpose')}
+                className="bg-white border-2 border-slate-200 text-slate-500 hover:bg-slate-50 px-8 py-5 rounded-full flex items-center gap-4 font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm text-lg"
+              >
+                <ArrowLeft size={24} /> Back
+              </button>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-[3rem] p-12 w-full shadow-xl text-center flex flex-col items-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
+              
+              <div className="w-24 h-24 bg-blue-50 border border-slate-100 rounded-full flex items-center justify-center mb-8 shadow-inner">
+                <Fingerprint size={48} className="text-blue-600" />
+              </div>
+              
+              <h2 className="text-4xl font-black text-slate-800 tracking-tight mb-4">Link to Patient Profile</h2>
+              <p className="text-lg font-bold text-slate-400 uppercase tracking-widest mb-10">Enter your Account Number (e.g., F26001)</p>
+              
+              <input 
+                type="text"
+                value={accountInput}
+                onChange={(e) => setAccountInput(e.target.value.toUpperCase())}
+                placeholder="ACCOUNT NO."
+                className="w-full bg-slate-50 border-2 border-slate-200 rounded-[2rem] px-8 py-6 text-4xl font-black text-slate-800 text-center mb-10 focus:border-blue-500 focus:outline-none transition-colors shadow-inner placeholder:text-slate-300 uppercase tracking-[0.1em]"
+              />
+              
+              <div className="flex gap-6 w-full">
+                <button 
+                  onClick={() => processTicket(true)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 border-2 border-slate-100 text-slate-600 font-black py-6 rounded-[2rem] text-xl uppercase tracking-widest transition-all active:scale-95 cursor-pointer"
+                >
+                  Skip / Guest
+                </button>
+                <button 
+                  onClick={() => processTicket(false)}
+                  disabled={!accountInput.trim()}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:border-slate-200 text-white font-black py-6 rounded-[2rem] text-xl uppercase tracking-widest shadow-md transition-all active:scale-95 cursor-pointer border-2 border-blue-600 disabled:shadow-none"
+                >
+                  Confirm ID
+                </button>
               </div>
             </div>
-            <h2 className="text-3xl font-black text-slate-800 tracking-tight mb-4">Generating Ticket...</h2>
-            <p className="text-lg font-medium text-slate-500 uppercase tracking-widest">Registering your {selectedPurpose}</p>
+          </div>
+        )}
+
+        {step === 'processing' && (
+          <div className="flex flex-col items-center justify-center text-center animate-in fade-in duration-300 z-10 h-full">
+            <div className="relative mb-12">
+              <div className="w-32 h-32 border-8 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Printer className="text-blue-600" size={40} />
+              </div>
+            </div>
+            <h2 className="text-4xl font-black text-slate-800 tracking-tight mb-6">Generating Ticket...</h2>
+            <p className="text-xl font-bold text-blue-600 uppercase tracking-[0.2em]">Registering {selectedPurpose?.label}</p>
           </div>
         )}
 
         {step === 'success' && (
           <div className="flex flex-col items-center justify-center text-center animate-in slide-in-from-bottom-10 duration-500 z-10 h-full">
             <div className="flex items-center gap-4 mb-6">
-              <CheckCircle size={50} className="text-green-500 drop-shadow-sm" />
-              <h2 className="text-4xl font-black text-slate-900 tracking-tight">
+              <CheckCircle size={60} className="text-green-500 drop-shadow-sm" />
+              <h2 className="text-5xl font-black text-slate-900 tracking-tight">
                 You're all set!
               </h2>
             </div>
             
-            <p className="text-lg font-medium text-slate-500 mb-8">
+            <p className="text-xl font-medium text-slate-500 mb-8">
               Please take a screenshot or remember your number.
             </p>
 
-            <div className="bg-white rounded-3xl p-8 shadow-[0_15px_40px_rgba(0,0,0,0.08)] border border-slate-200 relative w-[400px]">
-              <div className="absolute -left-5 top-[60%] -translate-y-1/2 w-10 h-10 bg-slate-100 rounded-full border-r border-slate-200"></div>
-              <div className="absolute -right-5 top-[60%] -translate-y-1/2 w-10 h-10 bg-slate-100 rounded-full border-l border-slate-200"></div>
+            <div className="bg-white rounded-[3rem] p-10 shadow-[0_20px_60px_rgba(0,0,0,0.08)] border border-slate-200 relative w-[450px]">
+              <div className="absolute -left-6 top-[60%] -translate-y-1/2 w-12 h-12 bg-slate-50 rounded-full border-r border-slate-200"></div>
+              <div className="absolute -right-6 top-[60%] -translate-y-1/2 w-12 h-12 bg-slate-50 rounded-full border-l border-slate-200"></div>
               
-              <div className="bg-blue-50 text-blue-700 px-5 py-2 rounded-full inline-block text-xs font-bold uppercase tracking-widest mb-4">
-                {selectedPurpose}
+              <div className="bg-blue-50 text-blue-700 px-6 py-2 rounded-full inline-block text-sm font-bold uppercase tracking-widest mb-6">
+                {selectedPurpose?.label}
               </div>
               
-              <p className="text-xs font-bold uppercase tracking-[0.3em] text-slate-400 mb-2 border-b-2 border-dashed border-slate-200 pb-4">
+              <p className="text-sm font-bold uppercase tracking-[0.3em] text-slate-400 mb-2 border-b-2 border-dashed border-slate-200 pb-6">
                 Your Queue Number
               </p>
               
-              <div className="text-[5.5rem] font-black text-slate-900 leading-none tracking-tighter my-6 font-mono">
+              <div className="text-[6.5rem] font-black text-slate-900 leading-none tracking-tighter my-8 font-mono">
                 {ticketNumber}
               </div>
               
-              <div className="border-t-2 border-dashed border-slate-200 pt-4 flex flex-col items-center justify-center gap-1 text-slate-500">
-                <div className="flex items-center gap-2 text-sm font-semibold tracking-wide">
-                  <Clock size={16} /> Please watch the TV display
+              <div className="border-t-2 border-dashed border-slate-200 pt-6 flex flex-col items-center justify-center gap-2 text-slate-500">
+                <div className="flex items-center gap-2 text-lg font-semibold tracking-wide">
+                  <Clock size={20} /> Please watch the TV display
                 </div>
-                <p className="text-[10px] uppercase tracking-widest opacity-60 mt-1">Auto-closing in 5 seconds...</p>
+                <p className="text-xs uppercase tracking-widest opacity-60 mt-2">Auto-closing in 5 seconds...</p>
               </div>
             </div>
           </div>
