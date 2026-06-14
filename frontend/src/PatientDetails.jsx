@@ -4,13 +4,11 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { 
   ArrowLeft, User, MapPin, Phone, Hash, Calendar, 
-  CreditCard, History, Activity, ChevronLeft, ChevronRight, Stethoscope, XCircle, Save
+  CreditCard, History, Activity, ChevronLeft, ChevronRight, Stethoscope, XCircle, Save, Clock
 } from 'lucide-react';
 
 const getToothType = (num) => {
   const n = parseInt(num);
-  // Using FDI World Dental Federation numbering system logic
-  // The second digit indicates the tooth type
   const lastDigit = n % 10;
   
   if ([1, 2].includes(lastDigit)) return 'incisor';
@@ -26,7 +24,7 @@ const RealisticTooth = ({ type, status, number, isLower }) => {
       case 'Cavity': return '#fee2e2';
       case 'Filling': return '#dbeafe';
       case 'Crown': return '#fef3c7';
-      case 'Missing': return '#f3e8ff'; // Noticeable Purple-100
+      case 'Missing': return '#f3e8ff';
       case 'Extracted': return '#f3f4f6';
       default: return '#ffffff';
     }
@@ -37,7 +35,7 @@ const RealisticTooth = ({ type, status, number, isLower }) => {
       case 'Cavity': return '#ef4444';
       case 'Filling': return '#3b82f6';
       case 'Crown': return '#f59e0b';
-      case 'Missing': return '#a855f7'; // Strong Purple-500
+      case 'Missing': return '#a855f7';
       case 'Extracted': return '#9ca3af';
       default: return '#d1d5db';
     }
@@ -87,6 +85,7 @@ export default function PatientDetails() {
   const [patient, setPatient] = useState(null);
   const [history, setHistory] = useState([]);
   const [dentalChart, setDentalChart] = useState([]);
+  const [visits, setVisits] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const [selectedTooth, setSelectedTooth] = useState(null);
@@ -100,14 +99,16 @@ export default function PatientDetails() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      const [profileRes, historyRes, chartRes] = await Promise.all([
+      const [profileRes, historyRes, chartRes, visitsRes] = await Promise.all([
         axios.get(`http://localhost:5000/api/patients/${id}`, { headers }),
         axios.get(`http://localhost:5000/api/patients/${id}/history`, { headers }),
-        axios.get(`http://localhost:5000/api/patients/${id}/chart`, { headers })
+        axios.get(`http://localhost:5000/api/patients/${id}/chart`, { headers }),
+        axios.get(`http://localhost:5000/api/patients/${id}/visits`, { headers })
       ]);
       setPatient(profileRes.data);
       setHistory(historyRes.data);
       setDentalChart(chartRes.data);
+      setVisits(visitsRes.data);
     } catch (error) {
       console.error(error);
     } finally {
@@ -343,7 +344,7 @@ export default function PatientDetails() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
         <div className="flex items-center gap-2 mb-4 border-b border-gray-100 pb-4">
           <History className="text-blue-600" size={20} />
           <h2 className="text-lg font-bold text-gray-900 tracking-tight">Treatment & Payment History</h2>
@@ -365,7 +366,6 @@ export default function PatientDetails() {
                         })}
                       </span>
                       
-                      {/* Attending Dentist Badge added here */}
                       <span className="flex items-center gap-1.5 text-blue-700 text-[10px] font-bold uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded border border-blue-200 w-fit">
                         <Stethoscope size={12} className="shrink-0" /> 
                         {record.dentist_name || 'Unknown Dentist'}
@@ -414,6 +414,40 @@ export default function PatientDetails() {
             <div className="bg-gray-50 p-8 rounded-lg border border-gray-200 border-dashed text-center">
               <CreditCard className="mx-auto text-gray-400 mb-2" size={24} />
               <p className="text-gray-500 text-sm">No transaction history found for this patient.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+        <div className="flex items-center gap-2 mb-4 border-b border-gray-100 pb-4">
+          <Clock className="text-blue-600" size={20} />
+          <h2 className="text-lg font-bold text-gray-900 tracking-tight">Visit & Appointment Log</h2>
+        </div>
+        <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+          {visits.length > 0 ? (
+            visits.map((visit) => (
+              <div key={visit.id} className="bg-white p-4 rounded-lg border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-blue-300 transition-colors shadow-sm">
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <h4 className="text-gray-900 text-sm font-semibold mb-1 break-all uppercase">{visit.reason || 'Consultation'}</h4>
+                  <div className="flex items-center gap-1.5 text-gray-500 text-xs mt-2">
+                    <Calendar size={12} className="shrink-0" />
+                    {new Date(visit.appointment_date).toLocaleDateString('en-US', {
+                      year: 'numeric', month: 'short', day: 'numeric'
+                    })} at {visit.appointment_time.substring(0,5)}
+                  </div>
+                </div>
+                <div className="flex shrink-0 mt-2 md:mt-0">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded border ${visit.status === 'Completed' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                    {visit.status}
+                  </span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 border-dashed text-center">
+               <Clock className="mx-auto text-gray-400 mb-2" size={24} />
+               <p className="text-gray-500 text-sm">No visits recorded yet.</p>
             </div>
           )}
         </div>
